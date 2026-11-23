@@ -1,4 +1,4 @@
-PEP: 1
+CEP: 1
 Title: CEP Purpose and Guidelines
 Author: Creeper19472
 Status: Active
