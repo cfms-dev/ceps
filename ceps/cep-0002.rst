@@ -1,0 +1,847 @@
+CEP: 1
+Title: Access Control Language (CACL) and Atomic Permissions
+Author: Creeper19472
+Status: Draft
+Type: Standards Track
+Created: 23-Nov-2026
+
+
+Abstract
+========
+
+This proposal specifies the lexical grammar, 21 orthogonal atomic operations,
+predefined permission macros, compile-time semantic validation rules, and
+runtime evaluation pipeline of **CACL (CFMS Access Control Language)**.
+
+CACL is a declarative access control domain-specific language (DSL) tailored
+for hierarchical directory trees and immutable versioned document models, with
+a default file extension of ``.cacl``. Backed by structured relational data as
+its Single Source of Truth (SSOT), CACL compiles deterministically via an
+LALR(1) parser into bitmasks and Boolean condition trees, and supports
+semantically lossless decompilation back into canonical DSL text.
+
+
+Motivation
+==========
+
+In the Confidential File Management System (CFMS), conventional flat Role-Based
+Access Control (RBAC) or monolithic Access Control Lists (ACLs) cannot
+simultaneously satisfy four core engineering and security requirements:
+
+1. **Controlled inheritance truncation and expressive condition matching**:
+   Business directory administrators need explicit ``inherit off`` boundaries
+   to isolate subdirectory permissions, while combining static principal grants
+   with dynamic Boolean predicates under unambiguous, order-independent
+   deny-overrides semantics.
+2. **Semantic coupling of directories and documents**: When directory listing
+   and document reading share a single permission flag, tree inheritance cannot
+   express common collaboration patterns such as a "blind dropbox" (allowing
+   users to list a directory or submit files while denying read access to
+   existing documents).
+3. **Historical data leakage in an immutable revision model**: Every write to a
+   CFMS document produces a new immutable revision. Without separating access
+   to the current revision from access to historical revision bodies, sensitive
+   information redacted in a newer version could still leak via older
+   snapshots.
+4. **Clear boundaries with soft deletion and global query filters**: CFMS uses
+   global query filters to completely exclude soft-deleted objects from
+   standard business views. The permission model must align strictly with this
+   mechanism to avoid defining redundant permissions that are unreachable
+   through standard endpoints.
+
+
+Rationale
+=========
+
+* **Unified DACL Model with Deny-Overrides and Inheritance Truncation**: All
+  rules reside in an inheritable, truncatable Discretionary Access Control List
+  (DACL) composed of peer-level ``allow`` and ``deny`` rules governed by
+  ``READ_DACL`` and ``WRITE_DACL``. Evaluating effective rules with strict,
+  order-independent deny-overrides, default-deny fallback, and explicit
+  ``inherit on | off`` boundaries keeps resolution deterministic while letting
+  subdirectories establish isolated permission trees.
+* **Orthogonal Atomic Operations and Compile-Time Macro Expansion**: All atomic
+  operations are mutually orthogonal and map directly to fixed-offset bitmasks,
+  eliminating logical conflicts between "implied containment" and set
+  subtraction. Permission macros (Presets) are expanded into deterministic
+  bitmasks at compile time, preventing future macro updates from silently
+  escalating privileges on existing directories.
+* **Explicit Inheritance Scope**: Declaring propagation targets explicitly via
+  ``on self | dirs | docs | all`` prevents unintended spillover of
+  directory-level grants onto child documents.
+* **Transient Comments vs. Persistent Remarks**: Line comments beginning with
+  ``#`` are intended solely for temporary human reading during editing and are
+  discarded at compile time. Audit explanations that must persist alongside
+  policies are expressed as first-class ``remark "..."`` clauses, preserving
+  semantic purity across compile/decompile round-trips.
+* **Uniform Rule Lifecycle Windows**: Temporal validity (``from`` / ``until``)
+  is modeled as a first-class, rule-level optional clause rather than a
+  predicate inside ``when`` or a privilege restricted to ``to`` grants. This
+  preserves strict syntactic equivalence between ``to`` and ``when``, enables
+  direct SQL indexing on UTC timestamp columns in the SSOT, and separates
+  absolute rule lifecycles from potential future periodic ABAC attributes.
+
+
+Specification
+=============
+
+1. Terminology and Conventions
+------------------------------
+
+* **Language Identifier**: ``CACL`` (CFMS Access Control Language), using the
+  ``.cacl`` file extension and UTF-8 encoding.
+* **Object Types**: Namespace nodes are classified into **Directories** and
+  **Documents**. A document maintains a system-managed sequence of immutable
+  **Revisions**, exactly one of which is designated as the active (``current``)
+  revision.
+* **Object States**: Objects exist in either the **Normal** state or the
+  **Soft-Deleted** state. Objects in the soft-deleted state are completely
+  hidden from standard endpoints by global query filters and are visible only
+  through dedicated trash management endpoints.
+* **Subject**: An authenticated security principal making an authorization
+  request, carrying a unique user identifier, zero or more group memberships,
+  and zero or more system-level capability permissions (a.k.a. user rights).
+
+
+1. Predefined Atomic Operations (21 Operations)
+-----------------------------------------------
+
+Every atomic operation is assigned a permanent, immutable bit offset (``0``
+through ``20``, with higher bits reserved for future expansion), enabling
+compact storage as integer bitmasks and fast bitwise evaluation.
+Implementations **should** store bitmasks in 64-bit integer columns; when
+targeting signed 64-bit relational ``BIGINT`` types, bit offsets ``0`` through
+``62`` are available for allocation while keeping bit ``63`` reserved to avoid
+sign-bit ambiguity.
+
+Sections 2.1, 2.2, 2.3, and 2.5 group operations by target object type.
+Section 2.4 mixes directory-only and shared operations, so its table specifies
+the applicable target object explicitly per row.
+
+2.1 Directory-Specific Operations
+'''''''''''''''''''''''''''''''''
+
+.. list-table::
+   :header-rows: 1
+
+   * - Bit Offset
+     - Mask (Hex)
+     - Operation
+     - Applicable State
+     - Semantics & Constraints
+   * - ``0``
+     - ``0x000001``
+     - ``TRAVERSE``
+     - Normal
+     - Traverse through a directory to access descendant paths; does not grant
+       directory listing rights.
+   * - ``1``
+     - ``0x000002``
+     - ``LIST_DIRECTORY``
+     - Normal
+     - List basic entry metadata (ID, name, type) of non-deleted direct
+       children in the directory.
+   * - ``2``
+     - ``0x000004``
+     - ``CREATE_DOCUMENT``
+     - Normal
+     - Create a new document in the directory; also required on the destination
+       parent directory when reparenting a document into it.
+   * - ``3``
+     - ``0x000008``
+     - ``CREATE_DIRECTORY``
+     - Normal
+     - Create a new subdirectory in the directory; also required on the
+       destination parent directory when reparenting a directory into it.
+
+
+2.2 Document and Immutable Revision Operations
+''''''''''''''''''''''''''''''''''''''''''''''
+
+.. list-table::
+   :header-rows: 1
+
+   * - Bit Offset
+     - Mask (Hex)
+     - Operation
+     - Applicable State
+     - Semantics & Constraints
+   * - ``4``
+     - ``0x000010``
+     - ``READ_CONTENT``
+     - Normal
+     - Read the body content of the document's active (``current``) revision
+       only.
+   * - ``5``
+     - ``0x000020``
+     - ``WRITE_CONTENT``
+     - Normal
+     - Write document content; the system automatically creates a new immutable
+       revision and advances ``current`` to it.
+   * - ``6``
+     - ``0x000040``
+     - ``LIST_REVISIONS``
+     - Normal
+     - List a document's historical revision inventory and basic revision
+       metadata, excluding historical body content.
+   * - ``7``
+     - ``0x000080``
+     - ``READ_REVISION``
+     - Normal
+     - Read the body content of non-current historical revisions of a document.
+   * - ``8``
+     - ``0x000100``
+     - ``SET_CURRENT_REVISION``
+     - Normal
+     - Point the ``current`` pointer to a specified historical revision without
+       mutating any historical snapshot.
+   * - ``9``
+     - ``0x000200``
+     - ``DELETE_REVISION``
+     - Normal
+     - Permanently destroy a specified historical revision (high-risk,
+       irreversible). **Business invariant**: Deleting the ``current`` revision
+       or the sole remaining revision of a document is strictly prohibited.
+
+
+2.3 Common Namespace and Metadata Operations (Directories & Documents)
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+.. list-table::
+   :header-rows: 1
+
+   * - Bit Offset
+     - Mask (Hex)
+     - Operation
+     - Applicable State
+     - Semantics & Constraints
+   * - ``10``
+     - ``0x000400``
+     - ``READ_METADATA``
+     - Normal
+     - Read extended metadata of an object (custom tags, extension fields,
+       etc.).
+   * - ``11``
+     - ``0x000800``
+     - ``WRITE_METADATA``
+     - Normal
+     - Update extended metadata of an object.
+   * - ``12``
+     - ``0x001000``
+     - ``RENAME``
+     - Normal
+     - Rename an object within the same parent directory (e.g.,
+       ``aaa/bbb -> aaa/ddd``).
+   * - ``13``
+     - ``0x002000``
+     - ``REPARENT``
+     - Normal
+     - Change an object's parent directory (e.g., ``aaa/bbb -> ccc/bbb``). Must
+       pass destination parent directory creation checks (``CREATE_DOCUMENT``
+       or ``CREATE_DIRECTORY``).
+
+
+2.4 Lifecycle and Trash Operations
+''''''''''''''''''''''''''''''''''
+
+.. list-table::
+   :header-rows: 1
+
+   * - Bit Offset
+     - Mask (Hex)
+     - Operation
+     - Target Object
+     - Applicable State
+     - Semantics & Constraints
+   * - ``14``
+     - ``0x004000``
+     - ``DELETE``
+     - Directory / Document
+     - Normal
+     - Mark an object as soft-deleted.
+   * - ``15``
+     - ``0x008000``
+     - ``DIRECTORY_DELETE_CHILD``
+     - Directory
+     - Normal
+     - Bypass per-item DACL ``DELETE`` checks on descendants when soft-deleting
+       a directory; does not by itself substitute for ``DELETE`` on the target
+       directory itself.
+   * - ``16``
+     - ``0x010000``
+     - ``LIST_DELETED``
+     - Directory
+     - Normal / Soft-Deleted
+     - List soft-deleted child entries under a directory (restricted to
+       dedicated trash endpoints; returns basic display fields with the
+       listing).
+   * - ``17``
+     - ``0x020000``
+     - ``RESTORE``
+     - Directory / Document
+     - Soft-Deleted
+     - Clear the soft-deleted state. For directories, requires the target
+       parent directory to be in the Normal state and cascades restoration to
+       the co-deleted subtree.
+   * - ``18``
+     - ``0x040000``
+     - ``PURGE``
+     - Directory / Document
+     - Soft-Deleted
+     - Physically and irreversibly destroy a soft-deleted object and all its
+       revisions; for directories, cascades physical destruction across the
+       soft-deleted subtree.
+
+
+2.5 Permission Governance Operations (Directories & Documents)
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+.. list-table::
+   :header-rows: 1
+
+   * - Bit Offset
+     - Mask (Hex)
+     - Operation
+     - Applicable State
+     - Semantics & Constraints
+   * - ``19``
+     - ``0x080000``
+     - ``READ_DACL``
+     - Normal
+     - Read an object's DACL rules and ``inherit`` configuration state.
+   * - ``20``
+     - ``0x100000``
+     - ``WRITE_DACL``
+     - Normal
+     - Modify an object's DACL rules and ``inherit`` toggle.
+
+
+3. Predefined Permission Macros (Presets)
+-----------------------------------------
+
+Permission macros are expanded at compile time into atomic operation bitmasks
+according to the following definitions:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Macro Name
+     - Expanded Atomic Operations
+     - Typical Use Case
+   * - ``CREATE_CHILD``
+     - ``CREATE_DOCUMENT``, ``CREATE_DIRECTORY``
+     - Create any child object type inside a directory
+   * - ``MOVE``
+     - ``REPARENT``, ``RENAME``
+     - Full move capability; supports set subtraction such as
+       ``[MOVE, -RENAME]``
+   * - ``PRESET_READ``
+     - ``TRAVERSE``, ``LIST_DIRECTORY``, ``READ_CONTENT``, ``READ_METADATA``
+     - Standard read-only browsing
+   * - ``PRESET_WRITE``
+     - ``CREATE_CHILD``, ``MOVE``, ``WRITE_CONTENT``, ``WRITE_METADATA``,
+       ``LIST_REVISIONS``, ``SET_CURRENT_REVISION``, ``DELETE``
+     - Standard write-capable operations (deliberately excludes
+       ``READ_REVISION``, ``DELETE_REVISION``, ``PURGE``, and ACL governance)
+   * - ``PRESET_RW``
+     - ``PRESET_READ``, ``PRESET_WRITE``
+     - Full read/write collaboration
+   * - ``PRESET_TRASH_MANAGE``
+     - ``LIST_DELETED``, ``RESTORE``, ``PURGE``, ``DIRECTORY_DELETE_CHILD``
+     - Trash maintenance and bulk cleanup
+   * - ``PRESET_ACL_MANAGE``
+     - ``READ_DACL``, ``WRITE_DACL``
+     - Standard directory and document permission administrator
+
+
+4. Formal Grammar and Core Semantics
+------------------------------------
+
+The normative grammar is maintained in a standalone file, ``cacl.lark``,
+satisfying unambiguous LALR(1) constraints:
+
+.. code-block:: text
+
+   // CACL (CFMS Access Control Language) Grammar
+   // Compatible with Lark LALR(1) parser.
+
+   start: directive* rule*
+
+   directive: "inherit" inherit_state ";"
+   inherit_state: "on"  -> inherit_on
+                | "off" -> inherit_off
+
+   rule: effect op_set scope_clause? match_clause time_clause? remark_clause? ";"
+
+   effect: "allow" -> effect_allow
+         | "deny"  -> effect_deny
+
+   op_set: "[" op_item ("," op_item)* "]"
+   ?op_item: op_add | op_sub
+   op_add: IDENT
+   op_sub: "-" IDENT
+
+   ?scope_clause: "on" scope
+   scope: "self" -> scope_self
+        | "dirs" -> scope_dirs
+        | "docs" -> scope_docs
+        | "all"  -> scope_all
+
+   ?match_clause: "to" principal_list
+                | "when" bool_expr
+
+   time_clause: valid_from valid_until? -> time_window
+              | valid_until             -> time_window
+
+   valid_from:  "from"  STRING
+   valid_until: "until" STRING
+
+   principal_list: principal ("," principal)*
+   ?principal: principal_pred | any_pred
+
+   ?bool_expr: or_expr
+   ?or_expr: and_expr ("or" and_expr)*
+   ?and_expr: not_expr ("and" not_expr)*
+   ?not_expr: neg_expr | atom
+   neg_expr: "not" not_expr
+
+   ?atom: principal_pred
+        | perm_pred
+        | any_pred
+        | "(" bool_expr ")"
+
+   principal_pred: PRINCIPAL_KIND "(" STRING ")"
+   perm_pred: PERM_KIND "(" STRING ")"
+   any_pred: "any"
+
+   remark_clause: "remark" STRING
+
+   PRINCIPAL_KIND: "user" | "group" | "role"
+   PERM_KIND: "perm"
+   IDENT: /[A-Z][A-Z0-9_]*/
+   STRING: /"([^"\\\r\n]|\\.)*"/
+   COMMENT: /#[^\r\n]*/
+
+   %ignore /[ \t\r\n]+/
+   %ignore COMMENT
+
+
+Syntactic Equivalence and Operator Precedence
+'''''''''''''''''''''''''''''''''''''''''''''
+
+* ``to p1, p2, ...`` is **strictly equivalent** in both abstract syntax tree
+  (AST) representation and evaluation semantics to ``when p1 or p2 or ...``; it
+  carries no precedence advantage over ``when``.
+* **Boolean Operator Precedence** (highest to lowest): parentheses ``(...)``,
+  ``not`` (right-associative), ``and`` (left-associative), ``or``
+  (left-associative).
+* **Rule Order Independence**: The textual order of ``rule`` statements within
+  a ``.cacl`` document has no semantic effect on authorization decisions.
+* An omitted ``scope_clause`` defaults to ``on all``.
+* An omitted ``inherit`` directive defaults to ``inherit on``.
+
+
+String Literals and Escaping
+''''''''''''''''''''''''''''
+
+String literals are enclosed in double quotes and may not contain unescaped
+carriage returns (``\r``) or line feeds (``\n``). Supported escape sequences are
+``\"`` (double quote), ``\\`` (backslash), ``\n`` (line feed), ``\r`` (carriage
+return), and ``\t`` (horizontal tab). Unrecognized escape sequences **must**
+raise a compile error. During canonical decompilation, these characters must be
+re-escaped using the same sequences.
+
+
+Subject Model and Predicate Semantics
+'''''''''''''''''''''''''''''''''''''
+
+All predicate string arguments are compared using **exact, case-sensitive**
+Unicode string matching against the authenticated subject's attributes:
+
+* ``user("id")``: Evaluates to true if the subject's unique user identifier
+  equals ``id``.
+* ``group("id")``: Evaluates to true if the subject belongs to group ``id``
+  (including transitive group memberships if resolved by the identity layer).
+* ``role("id")``: Evaluates to true if the subject holds role ``id``.
+* ``perm("cap")``: Evaluates to true if the subject holds the system-level
+  capability permission ``cap``. Because capabilities represent conditional
+  attributes rather than principal identities, ``perm(...)`` is intentionally
+  restricted to ``when`` expressions and disallowed in ``to`` principal lists.
+* ``any``: Evaluates to true for **any authenticated subject**. Unauthenticated
+  or anonymous requests are outside the DACL principal model and must never
+  match ``any``.
+
+
+Scope Matching Semantics
+''''''''''''''''''''''''
+
+A rule attached to an origin node applies to a target object at tree distance
+``d`` (where ``d = 0`` denotes the origin node itself and ``d > 0`` denotes a
+strict descendant) according to the following matrix:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Rule ``scope``
+     - Origin Node (``d = 0``)
+     - Descendant Directory (``d > 0``)
+     - Descendant Document (``d > 0``)
+   * - ``on self``
+     - Matches
+     - Does not match
+     - Does not match
+   * - ``on dirs``
+     - Matches if origin is a Directory
+     - Matches
+     - Does not match
+   * - ``on docs``
+     - Matches if origin is a Document
+     - Does not match
+     - Matches
+   * - ``on all``
+     - Matches
+     - Matches
+     - Matches
+
+
+Temporal Representation and Canonical Decompilation
+'''''''''''''''''''''''''''''''''''''''''''''''''''
+
+* **Literal Format**: Timestamps in ``from`` and ``until`` **must** conform to
+  :rfc:`3339` with an explicit timezone offset (``Z`` or ``±HH:MM``, e.g.,
+  ``"2026-12-01T00:00:00Z"`` or ``"2026-12-01T08:00:00+08:00"``). Naive
+  timestamps without timezone offsets are prohibited.
+* **SSOT Storage**: Each compiled DACL rule persists two nullable UTC timestamp
+  columns, ``valid_from`` and ``valid_until``. When ``time_clause`` is omitted,
+  both columns are stored as ``NULL``, representing unbounded validity.
+* **Canonical Decompilation**: When decompiling from the SSOT back into
+  canonical ``.cacl`` text:
+
+  * The ``inherit on;`` or ``inherit off;`` directive is emitted explicitly as
+    the first statement.
+  * Each rule's ``op_set`` is emitted as expanded atomic operation identifiers
+    ordered by ascending bit offset (``0`` through ``20``).
+  * ``on all`` is omitted as the canonical default; ``on self``, ``on dirs``,
+    and ``on docs`` are emitted explicitly.
+  * Condition trees consisting solely of a single principal/``any`` predicate
+    or a flat disjunction of principal/``any`` predicates are emitted using
+    ``to ...``; all other Boolean expressions are emitted using ``when ...``.
+  * Non-null ``valid_from`` and ``valid_until`` timestamps are normalized to
+    UTC with the ``Z`` suffix; if both are ``NULL``, ``time_clause`` is
+    omitted.
+
+
+5. Validation and Save-Time Authorization
+-----------------------------------------
+
+Validation is split into stateless compile-time checks (suitable for standalone
+CLI tools, editors, and dry-run validation) and stateful server-side
+authorization enforced when committing changes to the SSOT.
+
+5.1 Stateless Compile-Time Semantic Validation
+''''''''''''''''''''''''''''''''''''''''''''''
+
+When compiling ``.cacl`` text into its intermediate representation, the
+compiler **must** enforce the following checks:
+
+1. **Directive Uniqueness**: At most one ``inherit`` directive may appear in a
+   single object's policy text; duplicate declarations must raise a compile
+   error.
+2. **Set Algebra Validity**: ``op_set`` is evaluated strictly left to right via
+   set union (unsigned items) and set difference (``-`` prefixed items). The
+   leading item must not be negative; every identifier must be a valid atomic
+   operation or predefined macro; an empty resulting bitmask must raise a
+   compile error; subtracting a bit not currently present in the accumulated
+   set should emit a compiler warning.
+3. **Scope Intersection Warnings**: If a rule specifies ``on dirs`` but its
+   expanded bitmask contains no directory-applicable operations, or specifies
+   ``on docs`` but contains no document-applicable operations, the compiler
+   should emit a warning. When the target object type is known at compile time
+   (for example, compiling a policy bound to a Document), specifying ``on
+   dirs`` should likewise emit a warning.
+4. **Predicate Literal and Escape Validation**: String literals in ``user``,
+   ``group``, ``role``, and ``perm`` predicates must be non-empty after
+   unescaping; empty predicate identifiers or unrecognized escape sequences in
+   any string literal must raise a compile error.
+5. **Timestamp Syntax and Timezone Enforcement**: Every ``from`` and ``until``
+   literal must parse as a valid :rfc:`3339` timestamp with an explicit
+   timezone designator; otherwise, compilation must fail with a compile error.
+6. **Non-Empty Interval Check**: When both ``from`` and ``until`` are present,
+   the normalized UTC ``valid_from`` must be strictly earlier than
+   ``valid_until``. Equal or inverted bounds represent an empty interval and
+   must raise a compile error.
+7. **Expired Rule Diagnostic (Warning)**: If ``valid_until`` is earlier than or
+   equal to the compilation timestamp, the compiler should emit a warning
+   rather than an error. This prevents legacy expired rules from blocking
+   unrelated policy edits within the same ``.cacl`` file.
+8. **Temporary Deny Diagnostic (Warning)**: If a ``deny`` rule specifies an
+   ``until`` clause, the compiler should emit a warning alerting the author
+   that expiration of the ``deny`` rule may implicitly restore inherited
+   ``allow`` permissions.
+
+
+5.2 Save-Time Authorization
+'''''''''''''''''''''''''''
+
+When persisting compiled output to the SSOT (including any modification to DACL
+rules or the ``inherit`` toggle), the server **must** verify that the acting
+subject holds ``WRITE_DACL`` on the target object.
+
+
+6. Runtime Evaluation Pipeline
+------------------------------
+
+At the start of every authorization request
+``(subject, target_object, requested_op)``, the evaluation engine captures a
+single authoritative UTC timestamp snapshot ``t`` and uses it consistently
+throughout the entire request. The engine then renders a deterministic decision
+in the following order:
+
+1. **Lifecycle State and Endpoint Boundary Validation**:
+
+   * Standard business endpoints are guarded by the global soft-delete filter;
+     soft-deleted objects are invisible externally, and only operations
+     applicable to the Normal state are accepted.
+   * When dedicated trash management endpoints bypass the global filter and
+     encounter a soft-deleted target object, **only** ``LIST_DELETED``
+     (directories only), ``RESTORE``, and ``PURGE`` may proceed to subsequent
+     evaluation; all other operations are immediately denied.
+   * **Internal Bypass Convention**: When evaluating trash operations, the
+     authorization engine itself must bypass the global filter to load rules
+     from the target object and its ancestor chain, while strictly prohibiting
+     any unauthorized disclosure of rule contents.
+
+2. **Path Traversal Check**:
+
+   * Unless the deployment explicitly enables a global
+     ``bypass_traverse_checking`` mode (disabled by default), the engine
+     verifies that ``subject`` holds ``TRAVERSE`` on every ancestor directory
+     along the path to ``target_object``.
+   * On dedicated trash endpoints operating on a soft-deleted object within a
+     co-deleted subtree, ``TRAVERSE`` checks apply only to ancestor directories
+     in the **Normal** state; soft-deleted ancestor directories are skipped for
+     ``TRAVERSE`` validation to avoid conflicting with Step 1.
+
+3. **DACL Inheritance Chain Assembly and Temporal Filtering**:
+
+   * Walk upward starting from ``target_object`` (``d = 0``) through its
+     ancestor chain, collecting DACL ``allow`` and ``deny`` rules that match
+     ``target_object`` according to the Scope Matching Matrix (Section 4).
+   * Discard any rule whose temporal validity window does not contain ``t``,
+     using a **half-open interval** ``[valid_from, valid_until)``: a rule is
+     temporally active if and only if
+     ``(valid_from IS NULL OR valid_from <= t)`` **and**
+     ``(valid_until IS NULL OR t < valid_until)``.
+   * Upon encountering a node configured with ``inherit off``, **retain that
+     node's own active, scope-matching rules and immediately stop traversing
+     upward**.
+
+4. **Order-Independent Deny-Overrides and Default Deny**:
+
+   * Evaluate the assembled effective rule set without regard to rule order:
+   * If any effective ``deny`` rule includes ``requested_op`` in its bitmask
+     and its condition evaluates to true for ``subject``, return **DENY**.
+   * Otherwise, if any effective ``allow`` rule includes ``requested_op`` in
+     its bitmask and its condition evaluates to true for ``subject``, return
+     **ALLOW**.
+   * If no rule matches, fall back to the default policy and return **DENY**.
+
+5. **Cross-Object and Cascading Composite Constraints**:
+
+   * **Reparenting and Combined Move-Rename**: Executing ``REPARENT`` requires
+     ``REPARENT`` on the source object and ``CREATE_DOCUMENT`` (for documents)
+     or ``CREATE_DIRECTORY`` (for directories) on the destination parent
+     directory. A single operation that changes both parent directory and name
+     (e.g., ``aaa/bbb -> ccc/ddd``) requires ``REPARENT`` **and** ``RENAME`` on
+     the source object, plus the corresponding ``CREATE_*`` permission on the
+     destination parent directory.
+   * **Soft-Deleting Non-Empty Directories**: Soft-deleting a directory always
+     requires ``DELETE`` on the target directory itself. If the directory
+     contains non-deleted descendants, the subject must additionally hold
+     either ``DIRECTORY_DELETE_CHILD`` on the target directory (bypassing
+     per-descendant checks) or ``DELETE`` on every affected descendant.
+   * **Cascading Trash Transitions**: Directory-level ``RESTORE`` and
+     directory-level ``PURGE`` authorize cascading lifecycle transitions across
+     the target directory's co-deleted subtree without requiring per-child DACL
+     checks, subject to object state invariants (such as requiring the target
+     parent directory to be in the Normal state before ``RESTORE``).
+
+
+Usage Examples
+==============
+
+Example A: Revision Restrictions and Fine-Grained Collaborator Grants
+---------------------------------------------------------------------
+
+.. code-block:: text
+
+   inherit on;
+
+   # Prohibit reading or destroying historical revisions without audit clearance
+   deny [READ_REVISION, DELETE_REVISION] on docs
+     when not perm("history_audit")
+     remark "Prevent historical snapshot leakage and audit trail tampering";
+
+   # External collaborators may read and edit content, but cannot rename or
+   # soft-delete
+   allow [PRESET_RW, -RENAME, -DELETE]
+     to user("alice"), group("external_editors")
+     remark "External collaborators restricted to content iteration";
+
+   # Core R&D with vault write permission, or security auditors, may manage trash
+   allow [PRESET_TRASH_MANAGE] on dirs
+     when (group("core_dev") and perm("vault_write")) or group("sec_auditors");
+
+
+Example B: Blind Dropbox Directory
+----------------------------------
+
+.. code-block:: text
+
+   inherit off;
+
+   # All employees may drop new documents here, but cannot list others' files
+   # or read any child documents
+   allow [TRAVERSE, CREATE_DOCUMENT] on self
+     to group("all_employees")
+     remark "Blind dropbox submission entry point";
+
+   # Only the review board may list the directory and read submitted documents
+   allow [LIST_DIRECTORY] on self
+     to group("review_board");
+
+   allow [READ_CONTENT, READ_METADATA] on docs
+     to group("review_board")
+     remark "Read-only inspection by the review board";
+
+
+Example C: Time-Bounded Grants and Temporary Incident Freeze
+------------------------------------------------------------
+
+.. code-block:: text
+
+   inherit on;
+
+   # Time-bounded read-only access for external Q4 compliance auditors
+   allow [PRESET_READ, LIST_REVISIONS] on docs
+     to user("auditor_li")
+     from "2026-12-01T00:00:00Z" until "2026-12-16T00:00:00Z"
+     remark "2026 Q4 external audit window";
+
+   # Scheduled rollout for core developers starting FY2027
+   allow [PRESET_WRITE] on all
+     when group("core_dev") and perm("vault_write")
+     from "2027-01-01T00:00:00+08:00"
+     remark "FY2027 scheduled write enablement";
+
+   # Temporary write freeze during security incident No.402
+   deny [WRITE_CONTENT, DELETE, PURGE] on all
+     when not role("sec_incident_commander")
+     until "2026-11-25T12:00:00Z"
+     remark "Temporary freeze during incident No.402";
+
+
+Backwards Compatibility
+=======================
+
+This proposal establishes a new baseline specification for the CFMS access
+control subsystem and is not directly backwards-compatible with legacy
+unstructured permission rules. Upgrading existing deployments requires an
+offline migration script performing the following mappings:
+
+* Map legacy ``READ_CONTENT`` / ``WRITE_CONTENT`` grants on directories
+  according to node type to ``LIST_DIRECTORY`` /
+  ``CREATE_DOCUMENT | CREATE_DIRECTORY`` or the corresponding document
+  read/write operations.
+* Split legacy ``MOVE`` into the two-bit combination ``REPARENT | RENAME``.
+* Migrate legacy ``READ_DELETED_CONTENT`` to the directory operation
+  ``LIST_DELETED``.
+
+
+Security Implications
+=====================
+
+* **Deterministic Deny-Overrides and Default-Deny Baseline**: Evaluating the
+  effective DACL rule set with explicit ``deny`` overriding ``allow``—and
+  falling back to ``DENY`` when no rule matches—eliminates rule-ordering
+  ambiguity and prevents accidental exposure on newly created or unconfigured
+  nodes.
+* **Privilege Boundaries and Anti-Lockout for** ``WRITE_DACL`` **and**
+  ``REPARENT``: Because ``inherit off`` truncates ancestor DACL propagation and
+  ``REPARENT`` transitions an object into a different inheritance hierarchy,
+  ``WRITE_DACL`` and ``REPARENT`` carry elevated privilege impact and should be
+  granted strictly to trusted administrators. Furthermore, applying
+  ``inherit off`` without preserving an effective ``WRITE_DACL`` grant can lock
+  out directory administrators; deployments should pair CACL with an
+  out-of-band super-administrator recovery path or pre-commit anti-lockout
+  validation.
+* **Preserving Audit Trail Integrity**: Excluding ``READ_REVISION``,
+  ``DELETE_REVISION``, and ``PURGE`` from ``PRESET_WRITE`` and
+  ``PRESET_RW``—and strictly forbidding deletion of the ``current`` or sole
+  remaining revision—protects the integrity of immutable revision histories.
+* **Preventing Unauthorized Access to Soft-Deleted Data**: Combined with global
+  query filters, constraining soft-deleted capabilities strictly to
+  ``LIST_DELETED``, ``RESTORE``, and ``PURGE`` ensures deleted document bodies
+  cannot be covertly read without triggering an auditable restoration event.
+* **Expiration Semantics of Temporary** ``deny`` **Rules and Cache Staleness**:
+  While an expired ``allow`` rule fails closed to default-deny, an expired
+  ``deny`` rule ceases to override broader ancestor ``allow`` rules and may
+  silently re-expose access. Policy tooling should highlight expiring ``deny``
+  rules during review, and any runtime caching layer must bound entry TTLs by
+  the nearest rule transition timestamp to prevent stale grants or denials.
+
+
+Reference Implementation
+========================
+
+The reference implementation consists of two components, with ``cacl.lark``
+serving as the grammatical single source of truth:
+
+1. **Grammar File** (``cacl.lark``): Defined in full in Section 4 and loaded
+   with table caching via
+   ``Lark.open("cacl.lark", rel_to=__file__, parser="lalr", cache=True)``.
+2. **Compiler and Intermediate Representation** (``acl_compiler.py``): Maps the
+   21 atomic bitmasks using Python's ``IntFlag`` and employs a
+   ``lark.Transformer`` to perform macro expansion, set algebra evaluation,
+   scope intersection warnings, temporal validation, and canonical DACL rule
+   emission (``inherit`` state and ``dacl_rules``).
+
+
+Rejected Ideas
+==============
+
+1. **Splitting** ``explicit`` **and** ``policy`` **Keywords**: An earlier draft
+   proposed ``explicit allow ... to`` and ``policy allow ... when`` to
+   distinguish static principal grants from dynamic predicates. This risked
+   misleading policy authors into assuming ``explicit allow`` overrides
+   ``policy deny``, introducing severe precedence ambiguity. Both forms were
+   unified into peer-level ``allow`` / ``deny`` rules, retaining ``to`` solely
+   as syntactic sugar.
+2. **Retaining** ``READ_DELETED_CONTENT``: Because CFMS isolates soft-deleted
+   objects globally via query filters, un-restored objects should never expose
+   body content. Keeping a separate read-deleted-body permission offered no
+   legitimate workflow while expanding unaudited forensic access risks, so it
+   was removed in favor of directory-level ``LIST_DELETED``.
+3. **Defining** ``MOVE`` **as an Atomic Operation Implying** ``RENAME``:
+   Non-orthogonal atomic bits create logical contradictions between
+   ``allow [MOVE]`` and ``deny [RENAME]``. Splitting it into orthogonal
+   ``REPARENT`` and ``RENAME`` bits and demoting ``MOVE`` to a compile-time
+   macro makes set expressions like ``[MOVE, -RENAME]`` completely
+   self-consistent.
+4. **Persisting** ``#`` **Line Comments in the Database**: Preserving arbitrary
+   ``#`` comment positions requires maintaining brittle lexical side-channels
+   that easily misalign when rules are edited or reordered. Modeling structured
+   audit notes as first-class ``remark`` fields aligns much more cleanly with
+   an SSOT decompilation architecture.
+5. **Runtime Macro Expansion**: Persisting macro names such as ``PRESET_RW``
+   and expanding them at runtime would cause future changes to macro
+   definitions to implicitly alter effective permission boundaries on sensitive
+   legacy directories. Expanding macros at compile time guarantees long-term
+   determinism for historical grants.
+
+
+Copyright
+=========
+
+This document is placed in the public domain or under the CC0-1.0-Universal
+license, whichever is more permissive.
