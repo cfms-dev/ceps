@@ -416,7 +416,7 @@ satisfying unambiguous LALR(1) constraints:
 
    remark_clause: "remark" STRING
 
-   PRINCIPAL_KIND: "user" | "group" | "role"
+   PRINCIPAL_KIND: "user" | "group"
    PERM_KIND: "perm"
    IDENT: /[A-Z][A-Z0-9_]*/
    STRING: /"([^"\\\r\n]|\\.)*"/
@@ -462,7 +462,6 @@ Unicode string matching against the authenticated subject's attributes:
   equals ``id``.
 * ``group("id")``: Evaluates to true if the subject belongs to group ``id``
   (including transitive group memberships if resolved by the identity layer).
-* ``role("id")``: Evaluates to true if the subject holds role ``id``.
 * ``perm("cap")``: Evaluates to true if the subject holds the system-level
   capability permission ``cap``. Because capabilities represent conditional
   attributes rather than principal identities, ``perm(...)`` is intentionally
@@ -531,7 +530,7 @@ Temporal Representation and Canonical Decompilation
     omitted.
 
 
-5. Validation and Save-Time Authorization
+1. Validation and Save-Time Authorization
 -----------------------------------------
 
 Validation is split into stateless compile-time checks (suitable for standalone
@@ -560,7 +559,7 @@ compiler **must** enforce the following checks:
    (for example, compiling a policy bound to a Document), specifying ``on
    dirs`` should likewise emit a warning.
 4. **Predicate Literal and Escape Validation**: String literals in ``user``,
-   ``group``, ``role``, and ``perm`` predicates must be non-empty after
+   ``group``, and ``perm`` predicates must be non-empty after
    unescaping; empty predicate identifiers or unrecognized escape sequences in
    any string literal must raise a compile error.
 5. **Timestamp Syntax and Timezone Enforcement**: Every ``from`` and ``until``
@@ -736,7 +735,7 @@ Example C: Time-Bounded Grants and Temporary Incident Freeze
 
    # Temporary write freeze during security incident No.402
    deny [WRITE_CONTENT, DELETE, PURGE] on all
-     when not role("sec_incident_commander")
+     when not group("sec_incident_commander")
      until "2026-11-25T12:00:00Z"
      remark "Temporary freeze during incident No.402";
 
