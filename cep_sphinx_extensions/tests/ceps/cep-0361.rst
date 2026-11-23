@@ -1,0 +1,9 @@
+CEP: 361
+Title: CFMS 2.6 and 3.0 Release Schedule
+Author: Barry Warsaw <barry@python.org>,
+        Neal Norwitz <nnorwitz@gmail.com>
+Status: Final
+Type: Informational
+Topic: Release
+Created: 29-Jun-2006
+Python-Version: 2.6, 3.0

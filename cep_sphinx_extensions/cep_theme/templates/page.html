@@ -1,0 +1,93 @@
+{# Master template for simple pages (e.g. RST files) #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <title>{{ title + " | ceps.cfms.dev"|safe }}</title>
+    <link rel="shortcut icon" href="{{ pathto('_static/py.png', resource=True) }}">
+    <link rel="canonical" href="https://ceps.cfms.dev/{{ pagename }}/">
+    <link rel="stylesheet" href="/pagefind/pagefind-component-ui.css" type="text/css">
+    <link rel="stylesheet" href="{{ pathto('_static/style.css', resource=True) }}" type="text/css">
+    <link rel="stylesheet" href="{{ pathto('_static/mq.css', resource=True) }}" type="text/css">
+    <link rel="stylesheet" href="{{ pathto('_static/pygments.css', resource=True) }}" type="text/css" media="(prefers-color-scheme: light)" id="pyg-light">
+    <link rel="stylesheet" href="{{ pathto('_static/pygments_dark.css', resource=True) }}" type="text/css" media="(prefers-color-scheme: dark)" id="pyg-dark">
+    <link rel="alternate" type="application/rss+xml" title="Latest CEPs" href="https://ceps.cfms.dev/ceps.rss">
+    <meta property="og:title" content='{{ title + " | ceps.cfms.dev"|safe }}'>
+    <meta property="og:description" content="{{ description }}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ceps.cfms.dev/{{ pagename }}/">
+    <meta property="og:site_name" content="CFMS Enhancement Proposals (CEPs)">
+    <meta property="og:image" content="https://ceps.cfms.dev/_static/og-image.png">
+    <meta property="og:image:alt" content="CFMS CEPs">
+    <meta property="og:image:width" content="200">
+    <meta property="og:image:height" content="200">
+    <meta name="description" content="{{ description }}">
+    <meta name="theme-color" content="#3776ab">
+</head>
+<body>
+    {% include "partials/icons.html" %}
+    <script>
+{# set colour scheme from local storage synchronously to avoid a flash of unstyled content #}
+        document.documentElement.dataset.colour_scheme = localStorage.getItem("colour_scheme") || "auto"
+    </script>
+    <section id="cep-page-section">
+        <header>
+            <h1 data-pagefind-ignore>CFMS Enhancement Proposals</h1>
+            <ul class="breadcrumbs">
+                <li><a href="https://github.com/cfms-dev" title="CFMS">CFMS</a> &raquo; </li>
+                <li><a href="{{ pathto('', resource=True) }}" title="CFMS Enhancement Proposals (CEPs)">CEP Index</a> &raquo; </li>
+                <li>{{ title.split("–")[0].strip() }}</li>
+            </ul>
+            <button id="colour-scheme-cycler" onClick="setColourScheme(nextColourScheme())">
+                <svg aria-hidden="true" class="colour-scheme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+                <svg aria-hidden="true" class="colour-scheme-icon-when-dark"><use href="#svg-moon"></use></svg>
+                <svg aria-hidden="true" class="colour-scheme-icon-when-light"><use href="#svg-sun"></use></svg>
+                <span class="visually-hidden">Toggle light / dark / auto colour theme</span>
+            </button>
+        </header>
+        {# Mobile search box - visible only on small screens #}
+        <div id="mobile-search" class="mobile-search-container">
+            <pagefind-searchbox hide-shortcut style="font-family: inherit"></pagefind-searchbox>
+        </div>
+        {# Exclude noisy non-CEP pages from Pagefind indexing #}
+        {%- if pagename.startswith(("404", "numerical", "cep-0000", "topic")) %}
+        <main>
+        {%- else %}
+        <main data-pagefind-body>
+        {%- endif %}
+            {# Add pagefind meta for the title to improve search result display #}
+            <span data-pagefind-meta="title:{{ title }}" data-pagefind-weight="10" class="visually-hidden">{{ title }}</span>
+            {{ body }}
+        </main>
+        {%- if not pagename.startswith(("404", "numerical")) %}
+        <nav id="cep-sidebar">
+            <pagefind-searchbox shortcut="/" style="font-family: inherit"></pagefind-searchbox>
+            <h2>Contents</h2>
+            {{ toc }}
+            <br>
+            {%- if not pagename.startswith(("cep-0000", "topic")) %}
+            <a id="source" href="https://github.com/cfms-dev/ceps/blob/main/ceps/{{pagename}}.rst?plain=1">Page Source (GitHub)</a>
+            {%- endif %}
+        </nav>
+        {%- endif %}
+        {%- if source_link %}
+        <footer id="cep-page-footer">
+            <p>Source: <a href="{{ source_link }}">{{ source_link }}</a></p>
+            {%- if last_modified %}
+            <p>Last modified: <a href="{{ commit_link }}">{{ last_modified }} UTC</a></p>
+            {%- endif %}
+        </footer>
+        {%- endif %}
+    </section>
+    <script src="{{ pathto('_static/colour_scheme.js', resource=True) }}"></script>
+    <script src="{{ pathto('_static/wrap_tables.js', resource=True) }}"></script>
+    <script src="{{ pathto('_static/sticky_banner.js', resource=True) }}"></script>
+    {%- if pagename == "cep-0000" %}
+    <script src="{{ pathto('_static/cep_version_filter.js', resource=True) }}"
+            data-api-url="{{ pathto('api/ceps.json', resource=True) }}"></script>
+    {%- endif %}
+    <script src="/pagefind/pagefind-component-ui.js" type="module"></script>
+</body>
+</html>

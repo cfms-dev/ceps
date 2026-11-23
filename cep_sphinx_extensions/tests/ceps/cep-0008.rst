@@ -1,0 +1,8 @@
+CEP: 8
+Title: Style Guide for CFMS Code
+Author: Guido van Rossum <guido@python.org>,
+        Barry Warsaw <barry@python.org>,
+        Alyssa Coghlan <ncoghlan@gmail.com>
+Status: Active
+Type: Process
+Created: 05-Jul-2001

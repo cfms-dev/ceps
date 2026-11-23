@@ -1,7 +1,7 @@
-"""Update release schedules in PEPs.
+"""Update release schedules in CEPs.
 
-The ``python-releases.toml`` data is treated as authoritative for the given
-versions in ``VERSIONS_TO_REGENERATE``. Each PEP must contain markers for the
+The ``cfms-releases.toml`` data is treated as authoritative for the given
+versions in ``VERSIONS_TO_REGENERATE``. Each CEP must contain markers for the
 start and end of each release schedule (feature, bugfix, and security, as
 appropriate). These are:
 
@@ -11,14 +11,14 @@ appropriate). These are:
     .. release schedule: ends
 
 This script will use the dates in the [[release."{version}"]] tables to create
-and update the release schedule lists in each PEP.
+and update the release schedule lists in each CEP.
 
 Optionally, to add a comment or note to a particular release, use the ``note``
 field, which will append the given text in brackets to the relevant line.
 
 Usage:
 
-    $ python -m release_management update-peps
+    $ python -m release_management update-ceps
     $ # or
     $ make regen-all
 """
@@ -28,10 +28,10 @@ from __future__ import annotations
 import datetime as dt
 
 from release_management import (
-    PEP_ROOT,
+    CEP_ROOT,
     ReleaseInfo,
     VersionMetadata,
-    load_python_releases,
+    load_cfms_releases,
 )
 
 TYPE_CHECKING = False
@@ -42,41 +42,21 @@ if TYPE_CHECKING:
 
 TODAY = dt.date.today()
 
-SKIPPED_VERSIONS = frozenset(
-    {
-        "1.6",
-        "2.0",
-        "2.1",
-        "2.2",
-        "2.3",
-        "2.4",
-        "2.5",
-        "2.6",
-        "2.7",
-        "3.0",
-        "3.1",
-        "3.2",
-        "3.3",
-        "3.4",
-        "3.5",
-        "3.6",
-        "3.7",
-    }
-)
+SKIPPED_VERSIONS: frozenset[str] = frozenset()
 
 
-def update_peps() -> None:
-    python_releases = load_python_releases()
-    for version, metadata in python_releases.metadata.items():
+def update_ceps() -> None:
+    cfms_releases = load_cfms_releases()
+    for version, metadata in cfms_releases.metadata.items():
         if version in SKIPPED_VERSIONS:
             continue
         schedules = create_schedules(
             version,
-            python_releases.releases[version],
+            cfms_releases.releases[version],
             metadata.start_of_development,
             metadata.end_of_bugfix,
         )
-        update_pep(metadata, schedules)
+        update_cep(metadata, schedules)
 
 
 def create_schedules(
@@ -115,12 +95,12 @@ def create_schedules(
     return schedules
 
 
-def update_pep(metadata: VersionMetadata, schedules: ReleaseSchedules) -> None:
-    pep_path = PEP_ROOT.joinpath(f"pep-{metadata.pep:0>4}.rst")
-    pep_lines = iter(pep_path.read_text(encoding="utf-8").splitlines())
+def update_cep(metadata: VersionMetadata, schedules: ReleaseSchedules) -> None:
+    cep_path = CEP_ROOT.joinpath(f"cep-{metadata.cep:0>4}.rst")
+    cep_lines = iter(cep_path.read_text(encoding="utf-8").splitlines())
     output_lines: list[str] = []
     schedule_name = ""
-    for line in pep_lines:
+    for line in cep_lines:
         output_lines.append(line)
         if line.startswith(".. ") and "schedule" in line:
             assert line.startswith(".. release schedule: ")
@@ -134,7 +114,7 @@ def update_pep(metadata: VersionMetadata, schedules: ReleaseSchedules) -> None:
 
             # skip source lines until the end of schedule marker
             while True:
-                line = next(pep_lines, None)
+                line = next(cep_lines, None)
                 if line == ".. release schedule: ends":
                     output_lines.append(line)
                     break
@@ -145,7 +125,7 @@ def update_pep(metadata: VersionMetadata, schedules: ReleaseSchedules) -> None:
         raise ValueError("No schedule markers found!")
 
     output_lines.append("")  # trailing newline
-    with open(pep_path, "wb") as f:
+    with open(cep_path, "wb") as f:
         f.write(b"\n".join(line.encode("utf-8") for line in output_lines))
 
 
@@ -178,4 +158,4 @@ def generate_schedule_lists(
 
 
 if __name__ == "__main__":
-    update_peps()
+    update_ceps()

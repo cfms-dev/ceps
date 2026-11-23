@@ -4,7 +4,7 @@ import dataclasses
 import datetime as dt
 import json
 
-from release_management import load_python_releases
+from release_management import load_cfms_releases
 
 TYPE_CHECKING = False
 if TYPE_CHECKING:
@@ -26,9 +26,9 @@ CALENDAR_ESCAPE_TEXT = str.maketrans(
 
 
 def create_release_json() -> str:
-    python_releases = dataclasses.asdict(load_python_releases())
+    cfms_releases = dataclasses.asdict(load_cfms_releases())
     return json.dumps(
-        python_releases,
+        cfms_releases,
         indent=2,
         sort_keys=False,
         ensure_ascii=False,
@@ -37,7 +37,7 @@ def create_release_json() -> str:
 
 
 def create_release_cycle() -> str:
-    metadata = load_python_releases().metadata
+    metadata = load_cfms_releases().metadata
     all_versions = sorted(
         ((d.first_release, v) for v, d in metadata.items()), reverse=True
     )
@@ -57,7 +57,7 @@ def version_info(metadata: VersionMetadata, /) -> dict[str, str | int]:
         end_of_life = end_of_life.removesuffix("-01")
     return {
         "branch": metadata.branch,
-        "pep": metadata.pep,
+        "cep": metadata.cep,
         "status": metadata.status,
         "first_release": metadata.first_release.isoformat(),
         "end_of_life": end_of_life,
@@ -66,15 +66,15 @@ def version_info(metadata: VersionMetadata, /) -> dict[str, str | int]:
 
 
 def create_release_schedule_calendar() -> str:
-    python_releases = load_python_releases()
+    cfms_releases = load_cfms_releases()
     releases = []
-    for version, all_releases in python_releases.releases.items():
-        pep_number = python_releases.metadata[version].pep
+    for version, all_releases in cfms_releases.releases.items():
+        cep_number = cfms_releases.metadata[version].cep
         for release in all_releases:
             # Keep size reasonable by omitting releases older than 7 years
             if release.date < SEVEN_YEARS_AGO:
                 continue
-            releases.append((pep_number, release))
+            releases.append((cep_number, release))
     releases.sort(key=lambda r: r[1].date)
     lines = release_schedule_calendar_lines(releases)
     return "\r\n".join(lines)
@@ -88,11 +88,11 @@ def release_schedule_calendar_lines(
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//Python Software Foundation//Python release schedule//EN",
-        "X-WR-CALDESC:Python releases schedule from https://peps.python.org",
-        "X-WR-CALNAME:Python releases schedule",
+        "PRODID:-//CFMS//CFMS release schedule//EN",
+        "X-WR-CALDESC:CFMS releases schedule from https://ceps.cfms.dev",
+        "X-WR-CALNAME:CFMS releases schedule",
     ]
-    for pep_number, release in releases:
+    for cep_number, release in releases:
         normalised_stage = release.stage.replace(" ", "")
         normalised_stage = normalised_stage.translate(CALENDAR_ESCAPE_TEXT)
         if release.note:
@@ -103,11 +103,11 @@ def release_schedule_calendar_lines(
         lines += (
             "BEGIN:VEVENT",
             f"DTSTAMP:{dtstamp}",
-            f"UID:python-{normalised_stage}@releases.python.org",
+            f"UID:cfms-{normalised_stage}@releases.cfms.dev",
             f'DTSTART;VALUE=DATE:{release.date.strftime("%Y%m%d")}',
-            f"SUMMARY:Python {release.stage}",
+            f"SUMMARY:CFMS {release.stage}",
             *note,
-            f"URL:https://peps.python.org/pep-{pep_number:04d}/",
+            f"URL:https://ceps.cfms.dev/cep-{cep_number:04d}/",
             "END:VEVENT",
         )
     lines += (

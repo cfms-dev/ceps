@@ -1,0 +1,8 @@
+CEP: 9
+Title: Sample Plaintext CEP Template
+Author: Barry Warsaw <barry@python.org>
+Status: Withdrawn
+Type: Process
+Created: 14-Aug-2000
+
+https://ceps.cfms.dev/cep-0012/

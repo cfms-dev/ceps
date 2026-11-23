@@ -7,9 +7,9 @@ terraform {
   }
   required_version = ">= 1.1.8"
   cloud {
-    organization = "psf"
+    organization = "cfms"
     workspaces {
-      name = "peps"
+      name = "ceps"
     }
   }
 }

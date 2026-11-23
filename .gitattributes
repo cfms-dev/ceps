@@ -4,6 +4,6 @@
 *.pptx binary
 *.odp binary
 
-# Instruct linguist not to ignore the PEPs
+# Instruct linguist not to ignore the CEPs
 # https://github.com/github-linguist/linguist/blob/master/docs/overrides.md
-peps/*.rst text linguist-detectable
+ceps/*.rst text linguist-detectable

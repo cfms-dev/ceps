@@ -1,18 +1,18 @@
-resource "fastly_service_vcl" "peps" {
-  name     = "peps.python.org"
+resource "fastly_service_vcl" "ceps" {
+  name     = "ceps.cfms.dev"
   activate = true
-  domain { name = "peps.python.org" }
+  domain { name = "ceps.cfms.dev" }
 
   backend {
     name          = "GitHub Pages"
-    address       = "python.github.io"
+    address       = "cfms-dev.github.io"
     port          = 443
-    override_host = "peps.python.org"
+    override_host = "ceps.cfms.dev"
 
     use_ssl           = true
     ssl_check_cert    = true
-    ssl_cert_hostname = "python.github.io"
-    ssl_sni_hostname  = "python.github.io"
+    ssl_cert_hostname = "cfms-dev.github.io"
+    ssl_sni_hostname  = "cfms-dev.github.io"
   }
 
   header {
@@ -33,8 +33,8 @@ resource "fastly_service_vcl" "peps" {
     name    = "serve-rss"
     type    = "recv"
     content = <<-EOT
-        if (req.url == "/peps.rss/") {
-          set req.url = "/peps.rss";
+        if (req.url == "/ceps.rss/") {
+          set req.url = "/ceps.rss";
         }
     EOT
   }
@@ -66,17 +66,17 @@ resource "fastly_service_vcl" "peps" {
     type    = "recv"
     content = <<-EOT
         if (req.url ~ "^/(\d|\d\d|\d\d\d|\d\d\d\d)/?$") {
-          set req.http.Location = "/pep-" + std.strpad(re.group.1, 4, "0") + "/";
+          set req.http.Location = "/cep-" + std.strpad(re.group.1, 4, "0") + "/";
           error 618;
         }
     EOT
   }
   snippet {
-    name    = "left-pad-pep-numbers"
+    name    = "left-pad-cep-numbers"
     type    = "recv"
     content = <<-EOT
-        if (req.url ~ "^/pep-(\d|\d\d|\d\d\d)/?$") {
-          set req.http.Location = "/pep-" + std.strpad(re.group.1, 4, "0") + "/";
+        if (req.url ~ "^/cep-(\d|\d\d|\d\d\d)/?$") {
+          set req.http.Location = "/cep-" + std.strpad(re.group.1, 4, "0") + "/";
           error 618;
         }
     EOT

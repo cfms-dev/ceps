@@ -20,9 +20,9 @@ def test_create_release_calendar_has_calendar_metadata() -> None:
     assert cal_lines[:5] == [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//Python Software Foundation//Python release schedule//EN",
-        "X-WR-CALDESC:Python releases schedule from https://peps.python.org",
-        "X-WR-CALNAME:Python releases schedule",
+        "PRODID:-//CFMS//CFMS release schedule//EN",
+        "X-WR-CALDESC:CFMS releases schedule from https://ceps.cfms.dev",
+        "X-WR-CALNAME:CFMS releases schedule",
     ]
     assert cal_lines[-2:] == [
         "END:VCALENDAR",
@@ -39,11 +39,11 @@ def test_create_release_calendar_first_event() -> None:
     assert cal_lines[5] == "BEGIN:VEVENT"
     assert cal_lines[6].startswith("DTSTAMP:")
     assert cal_lines[6].endswith("Z")
-    assert cal_lines[7] == "UID:python-X.Y.Zfinal@releases.python.org"
+    assert cal_lines[7] == "UID:cfms-X.Y.Zfinal@releases.cfms.dev"
     assert cal_lines[8] == "DTSTART;VALUE=DATE:20000101"
-    assert cal_lines[9] == "SUMMARY:Python X.Y.Z final"
+    assert cal_lines[9] == "SUMMARY:CFMS X.Y.Z final"
     assert cal_lines[10] == (
         "DESCRIPTION:Note: These characters need escaping: \\\\ \\, \\; \\n"
     )
-    assert cal_lines[11] == "URL:https://peps.python.org/pep-9999/"
+    assert cal_lines[11] == "URL:https://ceps.cfms.dev/cep-9999/"
     assert cal_lines[12] == "END:VEVENT"

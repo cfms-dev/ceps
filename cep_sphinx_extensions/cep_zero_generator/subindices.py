@@ -1,0 +1,93 @@
+"""Utilities to support sub-indices for CEPs."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from cep_sphinx_extensions.cep_zero_generator import writer
+
+if TYPE_CHECKING:
+    from sphinx.environment import BuildEnvironment
+
+    from cep_sphinx_extensions.cep_zero_generator.parser import CEP
+
+
+def update_sphinx(
+    filename: str, text: str, docnames: list[str], env: BuildEnvironment
+) -> Path:
+    file_path = Path(env.srcdir, f"{filename}.rst")
+    # Only write and schedule for rebuild if content actually changed
+    try:
+        current = file_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        current = None
+    if current != text:
+        file_path.write_text(text, encoding="utf-8")
+        if filename not in docnames:
+            docnames.append(filename)
+
+    # Always ensure Sphinx knows about the file
+    env.found_docs.add(filename)
+
+    return file_path
+
+
+def generate_subindices(
+    subindices: dict[str, str],
+    ceps: list[CEP],
+    release_ceps: dict[str, int],
+    docnames: list[str],
+    env: BuildEnvironment,
+) -> None:
+    # create topic directory
+    os.makedirs(os.path.join(env.srcdir, "topic"), exist_ok=True)
+
+    # Create sub index page
+    generate_topic_contents(docnames, env)
+
+    for subindex, additional_description in subindices.items():
+        header_text = f"{subindex.title()} CEPs"
+        header_line = "#" * len(header_text)
+        header = header_text + "\n" + header_line + "\n"
+
+        topic = subindex.lower()
+        filtered_ceps = [cep for cep in ceps if topic in cep.topic]
+        subindex_intro = f"""\
+This is the index of all CFMS Enhancement Proposals (CEPs) labelled
+under the '{subindex.title()}' topic. This is a sub-index of :cep:`0`,
+the CEP index.
+
+{additional_description}
+"""
+        subindex_text = writer.CEPZeroWriter(release_ceps).write_cep0(
+            filtered_ceps,
+            header,
+            subindex_intro,
+            is_cep0=False,
+        )
+        update_sphinx(f"topic/{subindex}", subindex_text, docnames, env)
+
+
+def generate_topic_contents(docnames: list[str], env: BuildEnvironment):
+    update_sphinx(
+        "topic/index",
+        """\
+.. _topic-index:
+
+Topic Index
+***********
+
+CEPs are indexed by topic on the pages below:
+
+.. toctree::
+   :maxdepth: 1
+   :titlesonly:
+   :glob:
+
+   *
+""",
+        docnames,
+        env,
+    )

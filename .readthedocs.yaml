@@ -1,6 +1,6 @@
 # Read the Docs configuration file
 # See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
-# Project page: https://readthedocs.org/projects/pep-previews/
+# Project page: https://readthedocs.org/projects/cep-previews/
 
 version: 2
 
@@ -17,7 +17,7 @@ build:
 
 sphinx:
   builder: dirhtml
-  configuration: peps/conf.py
+  configuration: ceps/conf.py
 
 search:
   ignore: ['*']

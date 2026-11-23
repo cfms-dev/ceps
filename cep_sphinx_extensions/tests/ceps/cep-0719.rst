@@ -1,0 +1,8 @@
+CEP: 719
+Title: CFMS 3.13 Release Schedule
+Author: Thomas Wouters <thomas@python.org>
+Status: Active
+Type: Informational
+Topic: Release
+Created: 26-May-2023
+Python-Version: 3.13

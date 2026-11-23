@@ -1,51 +1,48 @@
 Contributing Guidelines
 =======================
 
-To learn more about the purpose of PEPs and how to go about writing one, please
-start reading at `PEP 1 <https://peps.python.org/pep-0001/>`_.
+To learn more about the purpose of CEPs and how to go about writing one, please
+start reading at `CEP 1 <https://ceps.cfms.dev/cep-0001/>`_.
 Also, make sure to check the `README <./README.rst>`_ for information
-on how to render the PEPs in this repository.
+on how to render the CEPs in this repository.
 Thanks again for your contributions, and we look forward to reviewing them!
 
 
-Before writing a new PEP
+Before writing a new CEP
 ------------------------
 
-Prior to submitting a pull request here with your draft PEP, see `PEP 1
-<https://peps.python.org/pep-0001/#start-with-an-idea-for-python>`_
+Prior to submitting a pull request here with your draft CEP, see `CEP 1
+<https://ceps.cfms.dev/cep-0001/>`_
 for some important steps to consider, including proposing and discussing it
-first in an appropriate venue, drafting a PEP and gathering feedback, and
+first in an appropriate venue, drafting a CEP and gathering feedback, and
 developing at least a prototype reference implementation of your idea.
 
 
-Contributing changes to existing PEPs
+Contributing changes to existing CEPs
 -------------------------------------
 
-In general, most non-Draft/Active PEPs are considered to be historical
+In general, most non-Draft/Active CEPs are considered to be historical
 documents rather than living specifications or documentation. Major changes to
-their core content usually require a new PEP, while smaller modifications may
-or may not be appropriate, depending on the PEP's status. See `PEP Maintenance
-<https://peps.python.org/pep-0001/#pep-maintenance>`_
-and `Changing Existing PEPs
-<https://peps.python.org/pep-0001/#changing-existing-peps>`_ in PEP 1 for more.
+their core content usually require a new CEP, while smaller modifications may
+or may not be appropriate, depending on the CEP's status. See `CEP Maintenance
+<https://ceps.cfms.dev/cep-0001/#cep-maintenance>`_
+and `Changing Existing CEPs
+<https://ceps.cfms.dev/cep-0001/#changing-existing-ceps>`_ in CEP 1 for more.
 
-Copyediting and proofreading Draft and Active PEPs is welcome (subject to
-review by the PEP author), and can be done via pull request to this repo.
-Substantive content changes should first be proposed on PEP discussion threads.
-We do advise against PRs that simply mass-correct minor typos on older PEPs
+Copyediting and proofreading Draft and Active CEPs is welcome (subject to
+review by the CEP author), and can be done via pull request to this repo.
+Substantive content changes should first be proposed on CEP discussion threads.
+We do advise against PRs that simply mass-correct minor typos on older CEPs
 which don't significantly impair meaning and understanding.
 
 If you're still unsure, we encourage you to reach out first before opening a
-PR here. For example, you could contact the PEP author(s), propose your idea in
-a discussion venue appropriate to the PEP (such as `Typing Discourse
-<https://discuss.python.org/c/typing/>`__ for static
-typing, or `Packaging Discourse <https://discuss.python.org/c/packaging/>`__
-for packaging), or `open an issue <https://github.com/python/peps/issues>`__.
+PR here. For example, you could contact the CEP author(s), propose your idea in
+a discussion venue appropriate to the CEP, or `open an issue <https://github.com/cfms-dev/ceps/issues>`__.
 
 Opening a pull request
 ----------------------
 
-The PEPs repository defines a set of pull request templates, which should be
+The CEPs repository defines a set of pull request templates, which should be
 used when opening a PR.
 
 If you use Git from the command line, you may be accustomed to creating PRs
@@ -57,7 +54,7 @@ you to create a pull request, will prompt you for the template you wish to use,
 and then give you the option of continuing editing in your browser.
 
 Alternatively, after pushing your branch, you can visit
-`https://github.com/python/peps <https://github.com/python/peps>`__, and follow
+`https://github.com/cfms-dev/ceps <https://github.com/cfms-dev/ceps>`__, and follow
 the link in the notification about recent changes to your branch to
 create a new PR. The in-browser interface will allow you to select a PR template
 for your new PR.
@@ -65,10 +62,10 @@ for your new PR.
 Commit messages and PR titles
 -----------------------------
 
-When adding or modifying a PEP, please include the PEP number in the commit
-summary and pull request title. For example, ``PEP NNN: <summary of changes>``.
+When adding or modifying a CEP, please include the CEP number in the commit
+summary and pull request title. For example, ``CEP NNN: <summary of changes>``.
 Likewise, prefix rendering infrastructure changes with ``Infra:``, linting
-alterations with ``Lint:`` and other non-PEP meta changes, such as updates to
+alterations with ``Lint:`` and other non-CEP meta changes, such as updates to
 the Readme/Contributing Guide, issue/PR template, etc., with ``Meta:``.
 
 
@@ -148,10 +145,10 @@ it finds or changes it makes, and abort the commit to allow you to check,
 and if necessary correct them before committing again.
 
 
-Check and fix PEP spelling
+Check and fix CEP spelling
 --------------------------
 
-To check for common spelling mistakes in your PEP and automatically suggest
+To check for common spelling mistakes in your CEP and automatically suggest
 corrections, you can run the codespell tool through pre-commit as well.
 
 Like the linters, on a system with ``make`` available, it can be installed

@@ -1,0 +1,6 @@
+# CFMS release schedules and version metadata.
+# Add version entries under [metadata."<X.Y>"] and [[release."<X.Y>"]].
+
+[metadata]
+
+[release]

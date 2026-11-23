@@ -22,22 +22,22 @@ if TYPE_CHECKING:
 
 RELEASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = RELEASE_DIR.parent
-PEP_ROOT = ROOT_DIR / "peps"
+CEP_ROOT = ROOT_DIR / "ceps"
 
 dc_kw = {"kw_only": True, "slots": True} if sys.version_info[:2] >= (3, 10) else {}
 
 
 @dataclass(frozen=True, **dc_kw)
-class PythonReleases:
+class CFMSReleases:
     metadata: dict[str, VersionMetadata]
     releases: dict[str, list[ReleaseInfo]]
 
 
 @dataclass(frozen=True, **dc_kw)
 class VersionMetadata:
-    """Metadata for a given interpreter version (MAJOR.MINOR)."""
+    """Metadata for a given version (MAJOR.MINOR)."""
 
-    pep: int
+    cep: int
     status: VersionStatus
     branch: str
     release_manager: str
@@ -67,15 +67,15 @@ class ReleaseInfo:
         return f"- {self.stage}: {self.date:%A, %Y-%m-%d}"
 
 
-def load_python_releases() -> PythonReleases:
-    with open(RELEASE_DIR / "python-releases.toml", "rb") as f:
-        python_releases = tomllib.load(f)
+def load_cfms_releases() -> CFMSReleases:
+    with open(RELEASE_DIR / "cfms-releases.toml", "rb") as f:
+        cfms_releases = tomllib.load(f)
     all_metadata = {
         v: VersionMetadata.from_toml(metadata)
-        for v, metadata in python_releases["metadata"].items()
+        for v, metadata in cfms_releases.get("metadata", {}).items()
     }
     all_releases = {
         v: [ReleaseInfo(**r) for r in releases]
-        for v, releases in python_releases["release"].items()
+        for v, releases in cfms_releases.get("release", {}).items()
     }
-    return PythonReleases(metadata=all_metadata, releases=all_releases)
+    return CFMSReleases(metadata=all_metadata, releases=all_releases)

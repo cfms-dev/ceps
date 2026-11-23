@@ -1,4 +1,4 @@
-name: Render PEPs
+name: Render CEPs
 
 on: [push, pull_request, workflow_dispatch]
 
@@ -13,8 +13,8 @@ env:
   FORCE_COLOR: 1
 
 jobs:
-  render-peps:
-    name: Render PEPs
+  render-ceps:
+    name: Render CEPs
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -42,7 +42,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
 
-      - name: Render PEPs
+      - name: Render CEPs
         run: make dirhtml search JOBS="$(nproc)"
 
         # remove the .doctrees folder when building for deployment as it takes two thirds of disk space

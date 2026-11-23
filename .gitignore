@@ -1,6 +1,6 @@
-# PEPs
-pep-0000.rst
-peps.rss
+# CEPs
+cep-0000.rst
+ceps.rss
 topic
 /build
 
@@ -25,7 +25,7 @@ coverage.xml
 
 # Builds
 /sphinx-warnings.txt
-/peps/numerical.rst
+/ceps/numerical.rst
 /.DS_Store
-/peps/.DS_Store
+/ceps/.DS_Store
 *.bkp
