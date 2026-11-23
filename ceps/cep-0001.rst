@@ -70,6 +70,12 @@ intended solely for temporary human reading during editing and are discarded at
 compile time. Audit explanations that must persist alongside policies are expressed
 as first-class `remark "..."` clauses, preserving semantic purity across
 compile/decompile round-trips.
+* **Uniform Rule Lifecycle Windows**: Temporal validity (`from` / `until`) is modeled 
+  as a first-class, rule-level optional clause rather than a predicate inside `when` 
+  or a privilege restricted to `to` grants. This preserves strict syntactic 
+  equivalence between `to` and `when`, enables direct SQL indexing on UTC timestamp 
+  columns in the SSOT, and separates absolute rule lifecycles from potential future 
+  periodic ABAC attributes.
 
 ---
 
@@ -111,7 +117,7 @@ Every atomic operation is assigned a permanent, immutable bit offset (`0` throug
 
 | Bit Offset | Mask (Hex) | Operation | Applicable State | Semantics & Constraints |
 | --- | --- | --- | --- | --- |
-| `10` | `0x000400` | `READ_METADATA` | Normal | Read extended metadata of an object (custom tags, classification attributes, extension fields, etc.). |
+| `10` | `0x000400` | `READ_METADATA` | Normal | Read extended metadata of an object (custom tags, extension fields, etc.). |
 | `11` | `0x000800` | `WRITE_METADATA` | Normal | Update extended metadata of an object. |
 | `12` | `0x001000` | `RENAME` | Normal | Rename an object within the same parent directory (e.g., `aaa/bbb → aaa/ddd`). |
 | `13` | `0x002000` | `REPARENT` | Normal | Change an object's parent directory (e.g., `aaa/bbb → ccc/bbb`). Must pass destination parent directory creation checks (`CREATE_DOCUMENT` or `CREATE_DIRECTORY`). |
@@ -165,7 +171,7 @@ directive: "inherit" inherit_state ";"
 inherit_state: "on"  -> inherit_on
              | "off" -> inherit_off
 
-rule: effect op_set scope_clause? match_clause remark_clause? ";"
+rule: effect op_set scope_clause? match_clause time_clause? remark_clause? ";"
 
 effect: "allow" -> effect_allow
       | "deny"  -> effect_deny
@@ -183,6 +189,12 @@ scope: "self" -> scope_self
 
 ?match_clause: "to" principal_list
              | "when" bool_expr
+
+time_clause: valid_from valid_until? -> time_window
+           | valid_until             -> time_window
+
+valid_from:  "from"  STRING
+valid_until: "until" STRING
 
 principal_list: principal ("," principal)*
 ?principal: principal_pred | any_pred
@@ -221,6 +233,12 @@ COMMENT: /#[^\r\n]*/
 * An omitted `scope_clause` defaults to `on all`.
 * An omitted `inherit` directive defaults to `inherit on`.
 
+#### Temporal Representation and Canonicalization
+
+* **Literal Format**: Timestamps in `from` and `until` **must** conform to RFC 3339 with an explicit timezone offset (`Z` or `±HH:MM`, e.g., `"2026-12-01T00:00:00Z"` or `"2026-12-01T08:00:00+08:00"`). Naive timestamps without timezone offsets are prohibited.
+* **SSOT Storage**: Each compiled DACL rule persists two nullable UTC timestamp columns, `valid_from` and `valid_until`. When `time_clause` is omitted, both columns are stored as `NULL`, representing unbounded validity.
+* **Canonical Decompilation**: When decompiling from the SSOT back into `.cacl` text, non-null timestamps are normalized to UTC with the `Z` suffix. If both `valid_from` and `valid_until` are `NULL`, the `time_clause` is omitted.
+
 ---
 
 ### 5. Compile-Time Semantic Validation and Save-Time Authorization
@@ -231,6 +249,10 @@ When compiling `.cacl` text into its intermediate representation, the compiler *
 2. **Set Algebra Validity**: `op_set` is evaluated strictly left to right via set union (unsigned items) and set difference (`-` prefixed items). The leading item must not be negative; every identifier must be a valid atomic operation or predefined macro; an empty resulting bitmask must raise a compile error; subtracting a bit not currently present in the accumulated set should emit a compiler warning.
 3. **Scope Intersection Warnings**: If a rule specifies `on dirs` but its expanded bitmask contains no directory-applicable operations, or specifies `on docs` but contains no document-applicable operations, the compiler should emit a warning.
 4. **Commit-Time Permission Enforcement**: When persisting compiled output (including any change to DACL rules or the `inherit` toggle), the server must verify that the acting subject holds `WRITE_DACL` on the target object.
+5. **Timestamp Syntax and Timezone Enforcement**: Every `from` and `until` literal must parse as a valid RFC 3339 timestamp with an explicit timezone designator; otherwise, compilation must fail with a compile error.
+6. **Non-Empty Interval Check**: When both `from` and `until` are present, the normalized UTC `valid_from` must be strictly earlier than `valid_until`. Equal or inverted bounds represent an empty interval and must raise a compile error.
+7. **Expired Rule Diagnostic (Warning)**: If `valid_until` is earlier than or equal to the compilation timestamp, the compiler should emit a warning rather than an error. This prevents legacy expired rules from blocking unrelated policy edits within the same `.cacl` file.
+8. **Temporary Deny Diagnostic (Warning)**: If a `deny` rule specifies an `until` clause, the compiler should emit a warning alerting the author that expiration of the `deny` rule may implicitly restore inherited `allow` permissions.
 
 ---
 
@@ -308,6 +330,30 @@ allow [READ_CONTENT, READ_METADATA] on docs
 
 ```
 
+### Example C: Time-Bounded Grants and Temporary Incident Freeze
+
+```cacl
+inherit on;
+
+# Time-bounded read-only access for external Q4 compliance auditors
+allow [PRESET_READ, LIST_REVISIONS] on docs
+  to user("auditor_li")
+  from "2026-12-01T00:00:00Z" until "2026-12-16T00:00:00Z"
+  remark "2026 Q4 external audit window";
+
+# Scheduled rollout for core developers starting FY2027
+allow [PRESET_WRITE] on all
+  when group("core_dev") and perm("vault_write")
+  from "2027-01-01T00:00:00+08:00"
+  remark "FY2027 scheduled write enablement";
+
+# Temporary write freeze during security incident No.402
+deny [WRITE_CONTENT, DELETE, PURGE] on all
+  when not role("sec_incident_commander")
+  until "2026-11-25T12:00:00Z"
+  remark "Temporary freeze during incident No.402";
+```
+
 ---
 
 ## Backwards Compatibility
@@ -326,6 +372,7 @@ This proposal establishes a new baseline specification for the CFMS access contr
 * **Privilege Boundaries of `WRITE_DACL` and `REPARENT**`: Because `inherit off` truncates ancestor DACL propagation and `REPARENT` transitions an object into a different inheritance hierarchy, `WRITE_DACL` and `REPARENT` carry elevated privilege impact and should be granted strictly to trusted administrators.
 * **Preserving Audit Trail Integrity**: Excluding `READ_REVISION`, `DELETE_REVISION`, and `PURGE` from `PRESET_EDIT`—and strictly forbidding deletion of the `current` or sole remaining revision—protects the integrity of immutable revision histories.
 * **Preventing Unauthorized Access to Soft-Deleted Data**: Combined with global query filters, constraining soft-deleted capabilities strictly to `LIST_DELETED`, `RESTORE`, and `PURGE` ensures deleted document bodies cannot be covertly read without triggering an auditable restoration event.
+* **Expiration Semantics of Temporary `deny` Rules and Cache Staleness**: While an expired `allow` rule fails closed to default-deny, an expired `deny` rule ceases to override broader ancestor `allow` rules and may silently re-expose access. Policy tooling should highlight expiring `deny` rules during review, and any runtime caching layer must bound entry TTLs by the nearest rule transition timestamp to prevent stale grants or denials.
 
 ---
 
