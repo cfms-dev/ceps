@@ -103,7 +103,7 @@ Specification
   and zero or more system-level capability permissions (a.k.a. user rights).
 
 
-1. Predefined Atomic Operations (21 Operations)
+2. Predefined Atomic Operations (21 Operations)
 -----------------------------------------------
 
 Every atomic operation is assigned a permanent, immutable bit offset (``0``
@@ -456,12 +456,23 @@ Subject Model and Predicate Semantics
 '''''''''''''''''''''''''''''''''''''
 
 All predicate string arguments are compared using **exact, case-sensitive**
-Unicode string matching against the authenticated subject's attributes:
+Unicode string matching against the authenticated subject's attributes. To
+guarantee stateless compilation, deterministic round-trip decompilation, and
+immunity to renaming drift, principal predicates **must** anchor strictly to
+immutable primary keys rather than mutable usernames or display names:
 
-* ``user("id")``: Evaluates to true if the subject's unique user identifier
-  equals ``id``.
-* ``group("id")``: Evaluates to true if the subject belongs to group ``id``
-  (including transitive group memberships if resolved by the identity layer).
+* ``user("id")``: Evaluates to true if the subject's immutable user primary key
+  (a canonical lowercase UUID) equals ``id``. Mutable login usernames, email
+  addresses, and display names are prohibited in CACL syntax; translating
+  between usernames and UUIDs is left exclusively to external tooling (e.g.,
+  editor autocomplete, inlay hints, or non-canonical views that attach
+  transient ``#`` comments).
+* ``group("id")``: Evaluates to true if the subject belongs to the group whose
+  immutable primary key equals ``id`` (including transitive group memberships
+  if resolved by the identity layer). Unlike user UUIDs, group primary keys in
+  CFMS are immutable, human-readable identifiers (e.g., ``sysop``,
+  ``core_dev``); mutable group display names or localized titles must not be
+  used.
 * ``perm("cap")``: Evaluates to true if the subject holds the system-level
   capability permission ``cap``. Because capabilities represent conditional
   attributes rather than principal identities, ``perm(...)`` is intentionally
@@ -530,7 +541,7 @@ Temporal Representation and Canonical Decompilation
     omitted.
 
 
-1. Validation and Save-Time Authorization
+5. Validation and Save-Time Authorization
 -----------------------------------------
 
 Validation is split into stateless compile-time checks (suitable for standalone
@@ -558,22 +569,39 @@ compiler **must** enforce the following checks:
    should emit a warning. When the target object type is known at compile time
    (for example, compiling a policy bound to a Document), specifying ``on
    dirs`` should likewise emit a warning.
-4. **Predicate Literal and Escape Validation**: String literals in ``user``,
-   ``group``, and ``perm`` predicates must be non-empty after
-   unescaping; empty predicate identifiers or unrecognized escape sequences in
-   any string literal must raise a compile error.
-5. **Timestamp Syntax and Timezone Enforcement**: Every ``from`` and ``until``
+4. **String Escape and Non-Empty Predicate Validation**: Unrecognized escape
+   sequences in any string literal (including predicates, timestamps, and
+   ``remark`` clauses) must raise a compile error. String literals in
+   ``user``, ``group``, and ``perm`` predicates must be non-empty after
+   unescaping; empty identifiers must raise a compile error.
+5. **Principal Identifier Format Validation**:
+
+   * ``user("id")`` arguments **must** conform to the standard 36-character
+     hyphenated hexadecimal UUID representation defined by :rfc:`9562`
+     (``8-4-4-4-12`` hexadecimal digits); malformed UUIDs, unhyphenated forms,
+     braced forms, and mutable usernames must raise a compile error. To avoid
+     coupling to a single UUID generator scheme, the compiler **must not**
+     reject valid syntax based on UUID version or variant bits. Uppercase
+     hexadecimal digits (``A``–``F``) are accepted at compile time and
+     normalized to canonical lowercase in the compiled IR and SSOT.
+   * ``group("id")`` and ``perm("cap")`` arguments are treated as opaque,
+     exact, case-sensitive human-readable identifiers. Beyond the non-empty
+     requirement in item 4, the CACL compiler **must not** impose a rigid
+     character-set restriction on them, preserving full compatibility with
+     CFMS's human-readable group primary keys (e.g., ``sysop``, ``core_dev``)
+     and capability namespaces.
+6. **Timestamp Syntax and Timezone Enforcement**: Every ``from`` and ``until``
    literal must parse as a valid :rfc:`3339` timestamp with an explicit
    timezone designator; otherwise, compilation must fail with a compile error.
-6. **Non-Empty Interval Check**: When both ``from`` and ``until`` are present,
+7. **Non-Empty Interval Check**: When both ``from`` and ``until`` are present,
    the normalized UTC ``valid_from`` must be strictly earlier than
    ``valid_until``. Equal or inverted bounds represent an empty interval and
    must raise a compile error.
-7. **Expired Rule Diagnostic (Warning)**: If ``valid_until`` is earlier than or
+8. **Expired Rule Diagnostic (Warning)**: If ``valid_until`` is earlier than or
    equal to the compilation timestamp, the compiler should emit a warning
    rather than an error. This prevents legacy expired rules from blocking
    unrelated policy edits within the same ``.cacl`` file.
-8. **Temporary Deny Diagnostic (Warning)**: If a ``deny`` rule specifies an
+9. **Temporary Deny Diagnostic (Warning)**: If a ``deny`` rule specifies an
    ``until`` clause, the compiler should emit a warning alerting the author
    that expiration of the ``deny`` rule may implicitly restore inherited
    ``allow`` permissions.
@@ -682,9 +710,11 @@ Example A: Revision Restrictions and Fine-Grained Collaborator Grants
      remark "Prevent historical snapshot leakage and audit trail tampering";
 
    # External collaborators may read and edit content, but cannot rename or
-   # soft-delete
+   # soft-delete. Principals are always anchored by immutable identifiers;
+   # transient "#" comments may be attached by tooling for human readability.
    allow [PRESET_RW, -RENAME, -DELETE]
-     to user("alice"), group("external_editors")
+     to user("5a52345a-ae51-4516-b277-bbd94b99d73a"), # external_bob
+        group("external_editors")
      remark "External collaborators restricted to content iteration";
 
    # Core R&D with vault write permission, or security auditors, may manage trash
@@ -723,7 +753,7 @@ Example C: Time-Bounded Grants and Temporary Incident Freeze
 
    # Time-bounded read-only access for external Q4 compliance auditors
    allow [PRESET_READ, LIST_REVISIONS] on docs
-     to user("auditor_li")
+     to user("5548914a-1297-48f2-8c35-274d222f4338") # auditor_li
      from "2026-12-01T00:00:00Z" until "2026-12-16T00:00:00Z"
      remark "2026 Q4 external audit window";
 
@@ -788,7 +818,14 @@ Security Implications
   silently re-expose access. Policy tooling should highlight expiring ``deny``
   rules during review, and any runtime caching layer must bound entry TTLs by
   the nearest rule transition timestamp to prevent stale grants or denials.
-
+* **Immutable Principal Primary Keys and Group ID Reuse**: Anchoring
+  ``user(...)`` to immutable UUIDs and ``group(...)`` to immutable group
+  primary keys eliminates privilege drift caused by renaming. Because
+  human-readable group primary keys can be re-created after deletion, system 
+  operators **should** avoid reusing previously deleted group IDs unless they 
+  have audited and cleaned up all residual DACL rules referencing that ID, as
+  a newly created group with the same primary key will immediately inherit any
+  lingering permissions.
 
 Reference Implementation
 ========================
