@@ -1,5 +1,5 @@
 CEP: 1
-Title: CACL -- CFMS Access Control Language and Permission Model Specification
+Title: Access Control Language (CACL) and Atomic Permissions
 Author: Creeper19472
 Status: Draft
 Type: Standards Track
