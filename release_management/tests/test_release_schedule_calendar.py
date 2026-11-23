@@ -21,7 +21,7 @@ def test_create_release_calendar_has_calendar_metadata() -> None:
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
         "PRODID:-//CFMS//CFMS release schedule//EN",
-        "X-WR-CALDESC:CFMS releases schedule from https://ceps.cfms.dev",
+        "X-WR-CALDESC:CFMS releases schedule from https://cfms-dev.github.io/ceps",
         "X-WR-CALNAME:CFMS releases schedule",
     ]
     assert cal_lines[-2:] == [
@@ -45,5 +45,5 @@ def test_create_release_calendar_first_event() -> None:
     assert cal_lines[10] == (
         "DESCRIPTION:Note: These characters need escaping: \\\\ \\, \\; \\n"
     )
-    assert cal_lines[11] == "URL:https://ceps.cfms.dev/cep-9999/"
+    assert cal_lines[11] == "URL:https://cfms-dev.github.io/ceps/cep-9999/"
     assert cal_lines[12] == "END:VEVENT"

@@ -2,7 +2,7 @@ Contributing Guidelines
 =======================
 
 To learn more about the purpose of CEPs and how to go about writing one, please
-start reading at `CEP 1 <https://ceps.cfms.dev/cep-0001/>`_.
+start reading at `CEP 1 <https://cfms-dev.github.io/ceps/cep-0001/>`_.
 Also, make sure to check the `README <./README.rst>`_ for information
 on how to render the CEPs in this repository.
 Thanks again for your contributions, and we look forward to reviewing them!
@@ -12,7 +12,7 @@ Before writing a new CEP
 ------------------------
 
 Prior to submitting a pull request here with your draft CEP, see `CEP 1
-<https://ceps.cfms.dev/cep-0001/>`_
+<https://cfms-dev.github.io/ceps/cep-0001/>`_
 for some important steps to consider, including proposing and discussing it
 first in an appropriate venue, drafting a CEP and gathering feedback, and
 developing at least a prototype reference implementation of your idea.
@@ -25,9 +25,9 @@ In general, most non-Draft/Active CEPs are considered to be historical
 documents rather than living specifications or documentation. Major changes to
 their core content usually require a new CEP, while smaller modifications may
 or may not be appropriate, depending on the CEP's status. See `CEP Maintenance
-<https://ceps.cfms.dev/cep-0001/#cep-maintenance>`_
+<https://cfms-dev.github.io/ceps/cep-0001/#cep-maintenance>`_
 and `Changing Existing CEPs
-<https://ceps.cfms.dev/cep-0001/#changing-existing-ceps>`_ in CEP 1 for more.
+<https://cfms-dev.github.io/ceps/cep-0001/#changing-existing-ceps>`_ in CEP 1 for more.
 
 Copyediting and proofreading Draft and Active CEPs is welcome (subject to
 review by the CEP author), and can be done via pull request to this repo.

@@ -85,7 +85,7 @@ def _generate_items(doctree_dir: Path):
             continue
 
         title = get_from_doctree(full_path, "Title")
-        url = f"https://ceps.cfms.dev/cep-{cep_num:0>4}/"
+        url = f"https://cfms-dev.github.io/ceps/cep-{cep_num:0>4}/"
         abstract = get_from_doctree(full_path, "Abstract")
         author = get_from_doctree(full_path, "Author")
         if "@" in author or " at " in author:
@@ -117,9 +117,9 @@ def create_rss_feed(doctree_dir: Path, output_dir: Path):
 <rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0">
   <channel>
     <title>Newest CFMS CEPs</title>
-    <link>https://ceps.cfms.dev/</link>
+    <link>https://cfms-dev.github.io/ceps/</link>
     <description>{RSS_DESCRIPTION}</description>
-    <atom:link href="https://ceps.cfms.dev/ceps.rss" rel="self"/>
+    <atom:link href="https://cfms-dev.github.io/ceps/ceps.rss" rel="self"/>
     <docs>https://cyber.harvard.edu/rss/rss.html</docs>
     <language>en</language>
     <lastBuildDate>{last_build_date}</lastBuildDate>

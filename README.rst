@@ -5,7 +5,7 @@ CFMS Enhancement Proposals
     :target: https://github.com/cfms-dev/ceps/actions
 
 The CEPs in this repo are published automatically on the web at
-https://ceps.cfms.dev/. To learn more about the purpose of CEPs and how to go
+https://cfms-dev.github.io/ceps/. To learn more about the purpose of CEPs and how to go
 about writing one, please start reading at :cep:`1`. Note that the CEP Index
 (:cep:`0`) is automatically generated based on the metadata headers in other CEPs.
 
@@ -14,16 +14,16 @@ Canonical links
 ===============
 
 The canonical form of CEP links are zero-padded, such as
-``https://ceps.cfms.dev/cep-0008/``.
+``https://cfms-dev.github.io/ceps/cep-0008/``.
 
 Shortcut redirects are also available.
-For example, ``https://ceps.cfms.dev/8`` redirects to the canonical link.
+For example, ``https://cfms-dev.github.io/ceps/8`` redirects to the canonical link.
 
 
 API
 ===
 
-Several data files are available at https://ceps.cfms.dev/api/
+Several data files are available at https://cfms-dev.github.io/ceps/api/
 
 
 Contributing to CEPs

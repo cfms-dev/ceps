@@ -206,7 +206,7 @@ def check_direct_links(line_num: int, line: str) -> MessageIterator:
     line = line.lower()
     if (
         "dev/ceps/cep-" in line
-        or "ceps.cfms.dev/cep-" in line
+        or "cfms-dev.github.io/ceps/cep-" in line
         or "dev/peps/pep-" in line
         or "peps.python.org/pep-" in line
     ):

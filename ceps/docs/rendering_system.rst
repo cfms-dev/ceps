@@ -110,7 +110,7 @@ This overrides the ``:cep:`` role to return the correct URL.
 ******************************
 
 CEPs start with a set of :rfc:`2822` headers,
-per `CEP 1 <https://ceps.cfms.dev/cep-0001/>`__.
+per `CEP 1 <https://cfms-dev.github.io/ceps/cep-0001/>`__.
 This transform validates that the required headers are present and of the
 correct data type, and removes headers not for display.
 It must run before the ``CEPTitle`` transform.

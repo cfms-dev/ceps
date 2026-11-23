@@ -5,7 +5,7 @@ ceps.json
 ---------
 
 There is a read-only JSON document of every published CEP available at
-https://ceps.cfms.dev/api/ceps.json.
+https://cfms-dev.github.io/ceps/api/ceps.json.
 
 Each CEP is represented as a JSON object, keyed by the CEP number.
 The structure of each JSON object is as follows:
@@ -62,7 +62,7 @@ illustrating some of the possible values for each field:
         "Barry Warsaw",
         "Brett Cannon"
        ],
-       "url": "https://ceps.cfms.dev/cep-0012/"
+       "url": "https://cfms-dev.github.io/ceps/cep-0012/"
      }
    }
 
@@ -70,7 +70,7 @@ release-cycle.json
 ------------------
 
 There is a read-only JSON document of CFMS releases
-available at https://ceps.cfms.dev/api/release-cycle.json.
+available at https://cfms-dev.github.io/ceps/api/release-cycle.json.
 
 Each feature version is represented as a JSON object,
 keyed by the minor version number ("X.Y").
@@ -116,7 +116,7 @@ cfms-releases.json
 ------------------
 
 A more complete JSON document of all CFMS releases is
-available at https://ceps.cfms.dev/api/cfms-releases.json and includes
+available at https://cfms-dev.github.io/ceps/api/cfms-releases.json and includes
 metadata about each feature release cycle, for example:
 
 .. code-block:: json
@@ -172,4 +172,4 @@ release-schedule.ics
 --------------------
 
 An iCalendar file of CFMS release dates is available at
-https://ceps.cfms.dev/release-schedule.ics.
+https://cfms-dev.github.io/ceps/release-schedule.ics.

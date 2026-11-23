@@ -20,4 +20,4 @@ Post-History: `2-Feb-2000 <FLIGHT LT. & PREBENDARY ETHEL MORRIS; THE DIMPLES; TH
 Resolution:
 
 
-https://ceps.cfms.dev/cep-9002.html
+https://cfms-dev.github.io/ceps/cep-9002.html

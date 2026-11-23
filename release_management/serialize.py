@@ -89,7 +89,7 @@ def release_schedule_calendar_lines(
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
         "PRODID:-//CFMS//CFMS release schedule//EN",
-        "X-WR-CALDESC:CFMS releases schedule from https://ceps.cfms.dev",
+        "X-WR-CALDESC:CFMS releases schedule from https://cfms-dev.github.io/ceps",
         "X-WR-CALNAME:CFMS releases schedule",
     ]
     for cep_number, release in releases:
@@ -107,7 +107,7 @@ def release_schedule_calendar_lines(
             f'DTSTART;VALUE=DATE:{release.date.strftime("%Y%m%d")}',
             f"SUMMARY:CFMS {release.stage}",
             *note,
-            f"URL:https://ceps.cfms.dev/cep-{cep_number:04d}/",
+            f"URL:https://cfms-dev.github.io/ceps/cep-{cep_number:04d}/",
             "END:VEVENT",
         )
     lines += (

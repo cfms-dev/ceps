@@ -5,4 +5,4 @@ Status: Withdrawn
 Type: Process
 Created: 14-Aug-2000
 
-https://ceps.cfms.dev/cep-0012/
+https://cfms-dev.github.io/ceps/cep-0012/

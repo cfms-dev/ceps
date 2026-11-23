@@ -7,8 +7,8 @@ import pytest
     [
         "http://www.python.org/dev/ceps/cep-0000/",
         "https://www.python.org/dev/ceps/cep-0000/",
-        "http://ceps.cfms.dev/cep-0000/",
-        "https://ceps.cfms.dev/cep-0000/",
+        "http://cfms-dev.github.io/ceps/cep-0000/",
+        "https://cfms-dev.github.io/ceps/cep-0000/",
     ],
 )
 def test_check_direct_links_cep(line: str):

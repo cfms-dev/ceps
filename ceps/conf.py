@@ -111,7 +111,7 @@ html_theme = "cep_theme"  # The actual theme directory (child of html_theme_path
 html_use_index = False  # Disable index (we use CEP 0)
 html_style = ""  # must be defined here or in theme.conf, but is unused
 html_permalinks = False  # handled in the CEPContents transform
-html_baseurl = "https://ceps.cfms.dev"  # to create the CNAME file
+html_baseurl = "https://cfms-dev.github.io/ceps"  # to create the CNAME file
 gettext_auto_build = False  # speed-ups
 
 # Theme template relative paths from `confdir`

@@ -1,13 +1,13 @@
 resource "fastly_service_vcl" "ceps" {
-  name     = "ceps.cfms.dev"
+  name     = "cfms-dev.github.io/ceps"
   activate = true
-  domain { name = "ceps.cfms.dev" }
+  domain { name = "cfms-dev.github.io/ceps" }
 
   backend {
     name          = "GitHub Pages"
     address       = "cfms-dev.github.io"
     port          = 443
-    override_host = "ceps.cfms.dev"
+    override_host = "cfms-dev.github.io/ceps"
 
     use_ssl           = true
     ssl_check_cert    = true

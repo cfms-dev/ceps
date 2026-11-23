@@ -183,7 +183,7 @@ class CEP:
             "superseded_by": self.superseded_by,
             # extra non-header keys for use in ``ceps.json``
             "author_names": tuple(self._author_names),
-            "url": f"https://ceps.cfms.dev/cep-{self.number:0>4}/",
+            "url": f"https://cfms-dev.github.io/ceps/cep-{self.number:0>4}/",
         }
 
 

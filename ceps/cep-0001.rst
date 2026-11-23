@@ -1,0 +1,326 @@
+```text
+CEP: 0001
+Title: CACL —— CFMS 访问控制语言与权限模型规范
+Author: CFMS Core Team
+Status: Draft
+Type: Standards Track
+Created: 23-Nov-2026
+
+```
+
+## 摘要 (Abstract)
+
+本提案定义了 **CACL (CFMS Access Control Language，CFMS 访问控制语言)** 的词法文法、23 项正交原子操作集、预定义权限宏、编译期语义校验规则以及运行期求值管线。
+
+CACL 是一门面向树形目录与不可变版本文档模型的声明式访问控制领域特定语言（DSL），默认文件扩展名为 `.cacl`。该语言以结构化关系数据为底层单一事实来源（SSOT），支持通过 LALR(1) 解析器确定性地编译为位掩码与布尔条件树，并可无损反编译回规范化的 DSL 文本。
+
+---
+
+## 动机 (Motivation)
+
+在机密文件管理系统（CFMS）中，传统的平面角色权限（RBAC）或单一访问控制列表难以同时满足以下四类核心工程与安全诉求：
+
+1. **合规红线与自治授权的冲突**：业务目录管理员需要通过 `inherit off` 隔离子目录权限，但合规部门挂在上级目录的强制禁止规则绝不能被子目录的局部配置绕过。
+2. **目录与文档语义耦合**：若目录列表与文档读取共用同一权限标识，在树形继承下无法表达“仅允许列目录或投递文件（盲投收件箱），但禁止读取已有文档”的常见协作模式。
+3. **不可变版本模型的历史泄密风险**：CFMS 文档每次写入都会生成不可变的新修订版本（Revision）。若未将“读取当前版本”与“读取历史版本正文”隔离，敏感信息经覆写脱敏后仍可能通过历史快照外泄。
+4. **软删除与全局过滤器的边界清晰化**：CFMS 通过全局查询过滤器将已软删除对象从常规业务视图中彻底排除。权限模型需要与该机制严格对齐，避免定义在常规接口中不可达的冗余权限。
+
+---
+
+## 设计原则与权衡 (Rationale)
+
+* **两层隔离模型（Mandatory vs. DACL）**：将规则严格划分为不可绕过的强制红线层（`mandatory deny`）与可继承/可截断的自主访问控制层（`allow` / `deny`）。红线层仅允许拒绝（Deny-only），且由独立于 `WRITE_DACL` 的 `WRITE_MANDATORY` 权限管控。
+* **正交原子操作与编译期宏展开**：所有原子操作彼此正交，直接对应固定偏移的位掩码，避免“包含关系”与“集合减法”产生逻辑冲突。权限宏（Presets）在编译期展开为确定性位掩码，防止未来调整宏定义导致存量目录静默提权。
+* **显式继承作用域**：通过 `on self | dirs | docs | all` 显式声明规则在目录树中的传播目标，消除目录授权向子文档的非预期溢出。
+* **注释丢弃与备注持久化**：以 `#` 开头的行注释仅供临时编辑阅读，编译期直接丢弃；需随策略落库并供审计追溯的说明统一通过一等语法子句 `remark "..."` 表达，保证编译与反编译循环的语义纯净。
+
+---
+
+## 规范详情 (Specification)
+
+### 1. 术语与基本约定
+
+* **语言代号**：`CACL`（CFMS Access Control Language），文件后缀为 `.cacl`，统一采用 UTF-8 编码。
+* **对象类型**：命名空间节点分为目录（Directory）**与**文档（Document）**两类；文档包含由系统维护的不可变**版本（Revision）序列，其中唯一一个版本被标记为当前生效版本（`current`）。
+* **对象状态**：分为**正常态（Normal）**与**软删态（Soft-Deleted）**。处于软删态的对象由全局查询过滤器从常规接口中完全隐藏，仅专用回收站管理接口可感知其存在。
+
+---
+
+### 2. 预定义原子操作表（共 23 项）
+
+所有原子操作分配固定不变的位偏移（`0` 至 `22`，预留高位供后续扩展），便于底层以无符号整型位掩码持久化存储与按位求值。
+
+#### 2.1 目录专属操作
+
+| 位偏移 | 掩码 (Hex) | 操作名 | 适用状态 | 语义与约束 |
+| --- | --- | --- | --- | --- |
+| `0` | `0x000001` | `TRAVERSE` | 正常 | 穿越目录访问其下级路径，不赋予列目录能力。 |
+| `1` | `0x000002` | `LIST_DIRECTORY` | 正常 | 列出目录下未软删的直接子项基础条目（ID、名称、类型）。 |
+| `2` | `0x000004` | `CREATE_DOCUMENT` | 正常 | 在当前目录下新建文档；同时作为跨目录迁入文档时对目标父目录的必检权限。 |
+| `3` | `0x000008` | `CREATE_DIRECTORY` | 正常 | 在当前目录下新建子目录；同时作为跨目录迁入目录时对目标父目录的必检权限。 |
+
+#### 2.2 文档与不可变版本操作
+
+| 位偏移 | 掩码 (Hex) | 操作名 | 适用状态 | 语义与约束 |
+| --- | --- | --- | --- | --- |
+| `4` | `0x000010` | `READ_CONTENT` | 正常 | 仅读取文档当前生效版本（`current`）的正文内容。 |
+| `5` | `0x000020` | `WRITE_CONTENT` | 正常 | 写入文档正文；系统自动创建新的不可变版本并将其设为 `current`。 |
+| `6` | `0x000040` | `LIST_REVISIONS` | 正常 | 列出文档历史版本清单及基础版本信息，不含历史正文。 |
+| `7` | `0x000080` | `READ_REVISION` | 正常 | 读取文档非当前历史版本的正文内容。 |
+| `8` | `0x000100` | `SET_CURRENT_REVISION` | 正常 | 将指定历史版本切换为 `current` 指针，不篡改任何历史快照。 |
+| `9` | `0x000200` | `DELETE_REVISION` | 正常 | 永久销毁指定历史版本（高危不可逆）。**业务不变量**：严禁删除 `current` 版本或文档仅存的唯一版本。 |
+
+#### 2.3 通用命名空间与元数据操作（目录 / 文档）
+
+| 位偏移 | 掩码 (Hex) | 操作名 | 适用状态 | 语义与约束 |
+| --- | --- | --- | --- | --- |
+| `10` | `0x000400` | `READ_METADATA` | 正常 | 读取对象的扩展元数据（自定义标签、密级属性、扩展字段等）。 |
+| `11` | `0x000800` | `WRITE_METADATA` | 正常 | 更新对象的扩展元数据。 |
+| `12` | `0x001000` | `RENAME` | 正常 | 在同一父目录内修改名称（如 `aaa/bbb → aaa/ddd`）。 |
+| `13` | `0x002000` | `REPARENT` | 正常 | 变更对象的父目录（如 `aaa/bbb → ccc/bbb`），必须通过目标目录创建权校验与强制策略不降级校验。 |
+
+#### 2.4 生命周期与回收站操作
+
+| 位偏移 | 掩码 (Hex) | 操作名 | 适用对象 | 适用状态 | 语义与约束 |
+| --- | --- | --- | --- | --- | --- |
+| `14` | `0x004000` | `DELETE` | 目录 / 文档 | 正常 | 将对象标记为软删除状态。 |
+| `15` | `0x008000` | `DIRECTORY_DELETE_CHILD` | 目录 | 正常 | 软删除目录时跳过对子树内普通 `DELETE` 权限的逐项检查；**严禁绕过子项的 `mandatory deny**`。 |
+| `16` | `0x010000` | `LIST_DELETED` | 目录 | 正常 / 软删 | 列出目录下已标记为软删除的子项条目（仅限回收站专用接口调用，随列表返回展示所需基础字段）。 |
+| `17` | `0x020000` | `RESTORE` | 目录 / 文档 | 软删 | 解除软删除状态；对目录执行时要求目标父目录为正常态，并级联恢复随同软删的子树，不可绕过子项 `mandatory deny`。 |
+| `18` | `0x040000` | `PURGE` | 目录 / 文档 | 软删 | 物理彻底销毁已软删除对象及其全部版本（不可逆）；对目录执行时严禁绕过子树中任何 `mandatory deny`。 |
+
+#### 2.5 权限与合规治理操作（目录 / 文档）
+
+| 位偏移 | 掩码 (Hex) | 操作名 | 适用状态 | 语义与约束 |
+| --- | --- | --- | --- | --- |
+| `19` | `0x080000` | `READ_DACL` | 正常 | 读取对象的普通访问规则与 `inherit` 配置状态。 |
+| `20` | `0x100000` | `WRITE_DACL` | 正常 | 修改对象的普通访问规则与 `inherit` 开关；**无权增删改 `mandatory` 规则**。 |
+| `21` | `0x200000` | `READ_MANDATORY` | 正常 | 只读查看对象上挂载的 `mandatory` 强制红线规则。 |
+| `22` | `0x400000` | `WRITE_MANDATORY` | 正常 | 增删改对象上的 `mandatory` 强制红线规则；实现方应当叠加系统级全局特权门控。 |
+
+---
+
+### 3. 预定义权限宏（Presets）
+
+权限宏在编译期按以下映射展开为原子操作位掩码：
+
+| 宏名称 | 展开后的原子操作集合 | 典型用途 |
+| --- | --- | --- |
+| `CREATE_CHILD` | `CREATE_DOCUMENT`, `CREATE_DIRECTORY` | 目录下创建任意类型子项 |
+| `MOVE` | `REPARENT`, `RENAME` | 完整移动能力；支持 `[MOVE, -RENAME]` |
+| `PRESET_READ` | `TRAVERSE`, `LIST_DIRECTORY`, `READ_CONTENT`, `READ_METADATA` | 常规只读浏览（隔离历史旧版与回收站） |
+| `PRESET_EDIT` | `PRESET_READ`, `CREATE_CHILD`, `MOVE`, `WRITE_CONTENT`, `WRITE_METADATA`, `LIST_REVISIONS`, `SET_CURRENT_REVISION`, `DELETE` | 常规协作者编辑（刻意排除 `READ_REVISION`、`DELETE_REVISION`、`PURGE` 及 ACL 治理权） |
+| `PRESET_TRASH_ADMIN` | `LIST_DELETED`, `RESTORE`, `PURGE`, `DIRECTORY_DELETE_CHILD` | 回收站维护与批量清理 |
+| `PRESET_ACL_ADMIN` | `READ_DACL`, `WRITE_DACL` | 常规目录权限管理员（隔离红线权） |
+
+---
+
+### 4. 形式化文法（Lark / EBNF）
+
+规范文法以独立文件 `cacl.lark` 维护，满足无二义性的 LALR(1) 约束：
+
+```lark
+// CACL (CFMS Access Control Language) Grammar - CEP 0001
+// Compatible with Lark LALR(1) parser.
+
+start: directive* rule*
+
+directive: "inherit" inherit_state ";"
+inherit_state: "on"  -> inherit_on
+             | "off" -> inherit_off
+
+?rule: mandatory_rule | dacl_rule
+
+mandatory_rule: "mandatory" "deny" op_set scope_clause? match_clause remark_clause? ";"
+dacl_rule: effect op_set scope_clause? match_clause remark_clause? ";"
+
+effect: "allow" -> effect_allow
+      | "deny"  -> effect_deny
+
+op_set: "[" op_item ("," op_item)* "]"
+?op_item: op_add | op_sub
+op_add: IDENT
+op_sub: "-" IDENT
+
+?scope_clause: "on" scope
+scope: "self" -> scope_self
+     | "dirs" -> scope_dirs
+     | "docs" -> scope_docs
+     | "all"  -> scope_all
+
+?match_clause: "to" principal_list
+             | "when" bool_expr
+
+principal_list: principal ("," principal)*
+?principal: principal_pred | any_pred
+
+?bool_expr: or_expr
+?or_expr: and_expr ("or" and_expr)*
+?and_expr: not_expr ("and" not_expr)*
+?not_expr: neg_expr | atom
+neg_expr: "not" not_expr
+
+?atom: principal_pred
+     | perm_pred
+     | any_pred
+     | "(" bool_expr ")"
+
+principal_pred: PRINCIPAL_KIND "(" STRING ")"
+perm_pred: PERM_KIND "(" STRING ")"
+any_pred: "any"
+
+remark_clause: "remark" STRING
+
+PRINCIPAL_KIND: "user" | "group" | "role"
+PERM_KIND: "perm"
+IDENT: /[A-Z][A-Z0-9_]*/
+STRING: /"([^"\\\r\n]|\\.)*"/
+COMMENT: /#[^\r\n]*/
+
+%ignore /[ \t\r\n]+/
+%ignore COMMENT
+
+```
+
+#### 语法等价约定
+
+* `to p1, p2, ...` 在抽象语法树与求值语义上**严格等价于** `when p1 or p2 or ...`，不享有高于 `when` 的额外优先级。
+* `scope_clause` 缺省时默认为 `on all`。
+* `inherit` 指令缺省时默认为 `inherit on`。
+
+---
+
+### 5. 编译期语义校验与保存分流
+
+编译器在将 `.cacl` 文本转换为中间表示时，**必须**执行以下校验：
+
+1. **指令唯一性**：单个对象的策略文本中最多出现一条 `inherit` 指令，重复声明必须报错。
+2. **集合代数合法性**：`op_set` 从左向右依次执行并集（无符号项）与差集（`-` 项）。首项不得为负项；所有符号必须为合法的原子操作或预定义宏；最终结果为空集时必须报编译错误；若 `-OP` 试图减去当前集合中不存在的位，编译器应当发出警告。
+3. **作用域交集预警**：当规则指定 `on dirs` 但展开后不含任何目录适用操作，或指定 `on docs` 但不含任何文档适用操作时，编译器应当发出警告。
+4. **提交期权限分流**：持久化保存编译结果时，服务端必须分别比对 `mandatory` 规则集与普通 DACL（含 `inherit` 开关）的变更差异——变更普通 DACL 校验 `WRITE_DACL`，变更 `mandatory` 规则必须强制校验 `WRITE_MANDATORY`。
+
+---
+
+### 6. 运行期求值管线
+
+对于任意用户请求 `(subject, target_object, requested_op)`，鉴权引擎按以下确定性顺序执行裁决：
+
+1. **生命周期状态与接口边界校验**：
+* 常规业务接口受全局软删过滤器保护，软删对象对外不可见，仅接受正常态适用操作。
+* 专用回收站管理接口绕过全局过滤器后，若目标对象处于软删态，**仅允许** `LIST_DELETED`（仅目录）、`RESTORE`、`PURGE` 三项操作进入后续求值；其余操作一律拒绝。
+* **内部穿透约定**：鉴权引擎自身在评估回收站操作时，必须绕过全局过滤器读取目标对象及其祖先链的规则数据，但严禁通过任何非授权途径向外暴露规则内容。
+
+
+2. **路径穿越检查**：按系统配置校验目标路径所有祖先目录的 `TRAVERSE` 权限。
+3. **强制红线层求值（`mandatory deny`）**：
+* 收集从根节点至目标对象整条路径上的全部 `mandatory deny` 规则，**完全无视路径中任何节点的 `inherit off` 设置**。
+* 按 `scope` 过滤适用规则（祖先节点的 `on self` 不下传；`on dirs` 仅匹配目录；`on docs` 仅匹配文档；`on all` 全部匹配）。
+* 若存在任意一条匹配 `requested_op` 且布尔条件求值为真的规则，立即返回 **DENY**。
+
+
+4. **普通 DACL 继承链组装**：
+* 从目标对象开始逐级向上收集普通 `allow` / `deny` 规则，并按 `scope` 过滤适用项。
+* 当遇到标记为 `inherit off` 的节点时，**保留该节点自身的规则后立即停止向上追溯**。
+
+
+5. **Deny 优先与默认拒绝**：
+* 在有效 DACL 规则集中，若存在任意匹配 `requested_op` 且条件为真的 `deny` 规则，返回 **DENY**。
+* 否则若存在任意匹配 `requested_op` 且条件为真的 `allow` 规则，返回 **ALLOW**。
+* 若全部未命中，落入默认兜底策略，返回 **DENY**。
+
+
+6. **跨对象与级联复合约束**：
+* 执行 `REPARENT`（含通过 `MOVE` 触发的跨目录移动）时，除校验源对象 `REPARENT` 及目标父目录 `CREATE_DOCUMENT` / `CREATE_DIRECTORY` 外，系统**必须**校验“源路径生效的 `mandatory deny` 规则集不会因迁移而在目标路径缺失”，否则拒绝迁移以防止权限洗白。
+* 执行 `DIRECTORY_DELETE_CHILD`、目录级 `RESTORE` 或 `PURGE` 时，可按语义跳过普通子项权限检查，但**绝不可跳过子树中任何节点的 `mandatory deny` 检查**。
+
+
+
+---
+
+## 使用示例 (Usage Examples)
+
+### 示例 A：合规红线与协作者精细授权
+
+```cacl
+inherit on;
+
+# 合规红线：无历史审计许可者禁止读取或销毁历史版本（子目录 inherit off 不可绕过）
+mandatory deny [READ_REVISION, DELETE_REVISION] on docs
+  when not perm("history_audit")
+  remark "防止历史快照泄密与破坏审计留痕";
+
+# 外部协作者可编辑正文，但禁止改名与软删除
+allow [PRESET_EDIT, -RENAME, -DELETE]
+  to user("alice"), group("external_editors")
+  remark "外部协作者仅限内容迭代";
+
+# 研发核心组或安全审计员可管理目录回收站
+allow [PRESET_TRASH_ADMIN] on dirs
+  when (group("core_dev") and perm("vault_write")) or group("sec_auditors");
+
+```
+
+### 示例 B：盲投收件箱目录
+
+```cacl
+inherit off;
+
+# 全员仅可在当前目录投递新文档，无法列出他人文件，也无法读取任何子文档
+allow [TRAVERSE, CREATE_DOCUMENT] on self
+  to group("all_employees")
+  remark "盲投收件箱提交入口";
+
+# 仅评审组可查看目录清单并只读审阅已投递文档
+allow [LIST_DIRECTORY] on self
+  to group("review_board");
+
+allow [READ_CONTENT, READ_METADATA] on docs
+  to group("review_board")
+  remark "评审委员会只读审阅";
+
+```
+
+---
+
+## 向后兼容性 (Backwards Compatibility)
+
+本提案为 CFMS 访问控制子系统的全新基线规范，不直接兼容历史版本中的非结构化权限规则。既有部署升级时需通过离线迁移脚本完成以下转换：
+
+* 将历史目录上的 `READ_CONTENT` / `WRITE_CONTENT` 依据节点类型分别映射至 `LIST_DIRECTORY` / `CREATE_DOCUMENT | CREATE_DIRECTORY` 或文档读写操作。
+* 将历史 `MOVE` 拆分为 `REPARENT | RENAME` 两位组合。
+* 将历史 `READ_DELETED_CONTENT` 迁移为目录操作 `LIST_DELETED`。
+
+---
+
+## 安全性考量 (Security Implications)
+
+* **防止红线失效**：强制将 `mandatory` 层与 `inherit off`、`WRITE_DACL` 物理隔离，彻底阻断局部目录管理员通过截断继承或修改 DACL 解除组织级合规限制的攻击面。
+* **防止跨目录权限洗白**：在 `REPARENT` 阶段强制实施 `mandatory` 策略集合不降级校验，防止攻击者将受限文件拖入自己全权控制的宽松目录以剥离上级红线。
+* **防止审计留痕破坏**：将 `READ_REVISION`、`DELETE_REVISION` 与 `PURGE` 排除在 `PRESET_EDIT` 之外，并强制禁止删除 `current` 版本或唯一版本，确保不可变修订历史的完整性。
+* **防止软删数据越权读取**：结合全局查询过滤器，将软删态能力严格收口至 `LIST_DELETED`、`RESTORE`、`PURGE`，禁止在不触发恢复审计事件的前提下暗中读取已删文档内容。
+
+---
+
+## 参考实现 (Reference Implementation)
+
+参考实现由以下两部分构成，以 `cacl.lark` 作为语法单一事实来源：
+
+1. **语法文件 (`cacl.lark`)**：完整定义见规范第 4 节，通过 `Lark.open("cacl.lark", rel_to=__file__, parser="lalr", cache=True)` 加载并缓存解析表。
+2. **编译器与中间表示 (`acl_compiler.py`)**：基于 Python `IntFlag` 映射 23 项原子位掩码，通过 `lark.Transformer` 完成宏展开、集合运算、作用域交叉警告与规则分层输出（`mandatory_rules` 与 `dacl_rules`）。
+
+---
+
+## 被否决的方案 (Rejected Ideas)
+
+1. **拆分 `explicit` 与 `policy` 关键字**：原草案拟使用 `explicit allow ... to` 与 `policy allow ... when` 区分显式主体与动态策略。该设计容易误导策略编写者认为 `explicit allow` 可覆盖 `policy deny`，引入严重优先级歧义，故统一合并为同级的 `allow` / `deny`，仅保留 `to` 作为语法糖。
+2. **支持 `mandatory allow**`：强制允许规则会破坏“Deny 优先”与最小权限原则，容易被误用为绕过局部安全封禁的后门，故红线层严格限定为 `mandatory deny`。
+3. **保留 `READ_DELETED_CONTENT`（读取已软删文档正文）**：CFMS 已在全局层面对软删对象施加查询过滤隔离，未恢复对象不应允许正文访问，拆分该权限既无业务场景又增大未审计取证风险，故予删除，仅保留面向目录的 `LIST_DELETED`。
+4. **将 `MOVE` 定义为包含 `RENAME` 的原子操作**：非正交原子位会导致 `allow [MOVE]` 与 `deny [RENAME]` 在逻辑上互相打架；将其拆分为正交的 `REPARENT` 与 `RENAME` 并将 `MOVE` 降级为宏后，集合减法 `[MOVE, -RENAME]` 语义完全自洽。
+5. **在底层数据库持久化 `#` 行注释**：为保留任意位置的 `#` 注释需维护脆弱的词法旁路通道且易在规则编辑重组时错位；以一等语法字段 `remark` 承载结构化审计说明更契合 SSOT 反编译架构。
+6. **在运行期动态展开权限宏**：若将 `PRESET_EDIT` 等宏名直接落库并在运行期展开，未来系统扩展宏定义时会隐式改变既有敏感目录的实际权限边界；改用编译期展开可确保历史授权的长期确定性。
+
+---
+
+## 版权声明 (Copyright)
+
+本提案文档归属于公有领域或采用 CC0-1.0-Universal 许可发布（以更具包容性者为准）。

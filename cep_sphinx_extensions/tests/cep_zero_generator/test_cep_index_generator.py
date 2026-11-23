@@ -8,7 +8,7 @@ def test_create_cep_json():
 
     out = cep_index_generator.create_cep_json(ceps)
 
-    assert '"url": "https://ceps.cfms.dev/cep-0008/"' in out
+    assert '"url": "https://cfms-dev.github.io/ceps/cep-0008/"' in out
 
 
 def test_build_release_ceps_links_individual_versions_from_joint_release_cep():
