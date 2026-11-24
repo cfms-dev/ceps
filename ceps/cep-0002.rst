@@ -507,7 +507,7 @@ strict descendant) according to the following matrix:
    * - ``on docs``
      - Matches if origin is a Document
      - Does not match
-     - Not applicable; documents cannot have descendants
+     - Matches
    * - ``on all``
      - Matches
      - Matches
