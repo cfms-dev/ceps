@@ -346,10 +346,10 @@ according to the following definitions:
    * - ``PRESET_RW``
      - ``PRESET_READ``, ``PRESET_WRITE``
      - Full read/write collaboration
-   * - ``PRESET_TRASH_MANAGE``
+   * - ``PRESET_TRASH_RW``
      - ``LIST_DELETED``, ``RESTORE``, ``PURGE``, ``DIRECTORY_DELETE_CHILD``
      - Trash maintenance and bulk cleanup
-   * - ``PRESET_ACL_MANAGE``
+   * - ``PRESET_ACL_RW``
      - ``READ_DACL``, ``WRITE_DACL``
      - Standard directory and document permission administrator
 
@@ -507,7 +507,7 @@ strict descendant) according to the following matrix:
    * - ``on docs``
      - Matches if origin is a Document
      - Does not match
-     - Matches
+     - Not applicable; documents cannot have descendants
    * - ``on all``
      - Matches
      - Matches
@@ -718,7 +718,7 @@ Example A: Revision Restrictions and Fine-Grained Collaborator Grants
      remark "External collaborators restricted to content iteration";
 
    # Core R&D with vault write permission, or security auditors, may manage trash
-   allow [PRESET_TRASH_MANAGE] on dirs
+   allow [PRESET_TRASH_RW] on dirs
      when (group("core_dev") and perm("vault_write")) or group("sec_auditors");
 
 
