@@ -89,28 +89,24 @@ def test_sort_authors():
 
 
 @pytest.mark.parametrize(
-    ("python_version", "expected"),
+    ("protocol_version", "expected"),
     [
-        ("3.14", "     - :cep:`3.14 <745>`"),
-        (
-            "2.4, 2.5, 2.6",
-            "     - :cep:`2.4 <320>`, :cep:`2.5 <356>`, :cep:`2.6 <361>`",
-        ),
-        ("2.4, 2.9", "     - :cep:`2.4 <320>`, 2.9"),
-        ("1.5.2", "     - 1.5.2"),
+        ("1", "     - :cep:`1 <361>`"),
+        ("1, 2, 3", "     - :cep:`1 <361>`, :cep:`2 <361>`, :cep:`3 <719>`"),
+        ("1, 4", "     - :cep:`1 <361>`, 4"),
+        ("4", "     - 4"),
         ("", "     - "),
     ],
 )
-def test_emit_cep_row_links_python_version_to_release_cep(
-    python_version,
+def test_emit_cep_row_links_protocol_version_to_release_cep(
+    protocol_version,
     expected,
 ):
     # Arrange
     release_ceps = {
-        "2.4": 320,
-        "2.5": 356,
-        "2.6": 361,
-        "3.14": 745,
+        1: 361,
+        2: 361,
+        3: 719,
     }
     cep0_writer = writer.CEPZeroWriter(release_ceps=release_ceps)
 
@@ -120,8 +116,27 @@ def test_emit_cep_row_links_python_version_to_release_cep(
         number=999,
         title="Test CEP",
         authors="Test Author",
-        python_version=python_version,
+        protocol_version=protocol_version,
     )
 
     # Assert
     assert expected in cep0_writer.output
+
+
+def test_emit_cep_row_omits_protocol_version_when_none():
+    cep0_writer = writer.CEPZeroWriter(release_ceps={1: 361})
+
+    cep0_writer.emit_cep_row(
+        shorthand="Active",
+        number=999,
+        title="Test CEP",
+        authors="Test Author",
+        protocol_version=None,
+    )
+
+    assert cep0_writer.output == [
+        "   * - Active",
+        "     - :cep:`999 <999>`",
+        "     - :cep:`Test CEP <999>`",
+        "     - Test Author",
+    ]

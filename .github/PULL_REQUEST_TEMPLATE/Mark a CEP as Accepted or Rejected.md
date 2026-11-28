@@ -10,4 +10,4 @@ If you're unsure about anything, just leave it blank and we'll take a look.
 * [ ] ``Status`` changed to ``Accepted``/``Rejected``
 * [ ] ``Resolution`` field points directly to SC/CEP Delegate official acceptance/rejected post, including the date (e.g. `` `01-Jan-2000 <https://discuss.python.org/t/12345/100>`__ ``)
 * [ ] Acceptance/rejection notice added, if the SC/CEP delegate had major conditions or comments
-* [ ] ``Discussions-To``, ``Post-History`` and ``Python-Version`` up to date
+* [ ] ``Discussions-To``, ``Post-History`` and ``Protocol-Version`` up to date

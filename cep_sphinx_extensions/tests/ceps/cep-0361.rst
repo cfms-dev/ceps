@@ -6,4 +6,4 @@ Status: Final
 Type: Informational
 Topic: Release
 Created: 29-Jun-2006
-Python-Version: 2.6, 3.0
+Protocol-Version: 1, 2

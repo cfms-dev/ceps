@@ -37,7 +37,7 @@ def update_sphinx(
 def generate_subindices(
     subindices: dict[str, str],
     ceps: list[CEP],
-    release_ceps: dict[str, int],
+    release_ceps: dict[int, int],
     docnames: list[str],
     env: BuildEnvironment,
 ) -> None:

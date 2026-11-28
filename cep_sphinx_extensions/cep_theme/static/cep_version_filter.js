@@ -1,52 +1,36 @@
 /**
- * Version filter for CEP Index page
- * Filters CEP tables by version using the JSON API
+ * Protocol version filter for CEP Index page
+ * Filters CEP tables by protocol_version using the JSON API
  */
 (function () {
   "use strict";
 
-  const STORAGE_KEY = "cep_version_filter";
+  const STORAGE_KEY = "cep_protocol_version_filter";
   const API_URL =
     document.currentScript?.dataset.apiUrl || "/api/ceps.json";
   let cepVersionMap = {};
   let allVersions = [];
 
   /**
-   * Parse python_version string and extract individual versions
-   * Handles formats like "3.10", "2.4, 2.5, 2.6", "2.7, 3.0"
+   * Parse protocol_version value into an array of normalized positive integer strings
    */
-  function parseVersions(versionStr) {
-    if (!versionStr) return [];
-    return versionStr
-      .split(",")
-      .map((v) => v.trim())
-      .filter((v) => v);
+  function parseProtocolVersions(value) {
+    if (value === null || value === undefined) return [];
+    const items = Array.isArray(value) ? value : String(value).split(",");
+    return items
+      .map((v) => String(v).trim())
+      .filter((v) => /^[1-9]\d*$/.test(v));
   }
 
   /**
-   * Extract major.minor version from a version string
-   * "3.10.1" -> "3.10", "3.10" -> "3.10"
-   */
-  function getMajorMinor(version) {
-    const match = version.match(/^(\d+\.\d+)/);
-    return match ? match[1] : version;
-  }
-
-  /**
-   * Sort versions in descending order (newest first)
-   * Handles both 2.x and 3.x versions
+   * Sort protocol versions in descending order (newest first)
    */
   function sortVersionsDescending(versions) {
-    return versions.sort((a, b) => {
-      const [aMajor, aMinor] = a.split(".").map(Number);
-      const [bMajor, bMinor] = b.split(".").map(Number);
-      if (bMajor !== aMajor) return bMajor - aMajor;
-      return bMinor - aMinor;
-    });
+    return versions.sort((a, b) => Number(b) - Number(a));
   }
 
   /**
-   * Fetch CEP data and build version map
+   * Fetch CEP data and build protocol version map
    */
   async function loadCepData() {
     try {
@@ -57,15 +41,11 @@
       const versionSet = new Set();
 
       for (const [cepNum, cep] of Object.entries(data)) {
-        const versions = parseVersions(cep.python_version);
+        const versions = parseProtocolVersions(cep.protocol_version);
         cepVersionMap[cepNum] = versions;
 
-        // Collect unique major.minor versions
         for (const v of versions) {
-          const majorMinor = getMajorMinor(v);
-          if (/^\d+\.\d+$/.test(majorMinor)) {
-            versionSet.add(majorMinor);
-          }
+          versionSet.add(v);
         }
       }
 
@@ -88,12 +68,11 @@
   }
 
   /**
-   * Check if a CEP matches the selected version filter
+   * Check if a CEP matches the selected protocol version filter
    */
   function cepMatchesVersion(cepNum, selectedVersion) {
     if (!selectedVersion || selectedVersion === "all") return true;
-    const cepVersions = cepVersionMap[cepNum] || [];
-    return cepVersions.some((v) => getMajorMinor(v) === selectedVersion);
+    return (cepVersionMap[cepNum] || []).includes(selectedVersion);
   }
 
   /**
@@ -158,7 +137,7 @@
     const container = document.createElement("div");
     container.id = "cep-version-filter";
     container.innerHTML = `
-            <label for="cep-version-select">Filter by version:</label>
+            <label for="cep-version-select">Filter by protocol version:</label>
             <select id="cep-version-select">
                 <option value="all">All versions</option>
             </select>

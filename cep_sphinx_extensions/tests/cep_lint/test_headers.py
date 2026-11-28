@@ -289,92 +289,49 @@ def test_validate_cep_references_separators(line: str):
     ("line", "expected_warnings"),
     [
         # valid entries
-        ("1.0, 2.4, 2.7, 2.8, 3.0, 3.1, 3.4, 3.7, 3.11, 3.14", set()),
-        ("2.x", set()),
-        ("3.x", set()),
-        ("3.0.1", set()),
-        # segments
-        ("", {"segments"}),
-        ("1", {"segments"}),
-        ("1.2.3.4", {"segments"}),
-        # major
-        ("0.0", {"major"}),
-        ("4.0", {"major"}),
-        ("9.0", {"major"}),
-        # minor number
-        ("3.a", {"minor numeric"}),
-        ("3.spam", {"minor numeric"}),
-        ("3.0+", {"minor numeric"}),
-        ("3.0-9", {"minor numeric"}),
-        ("9.Z", {"major", "minor numeric"}),
-        # minor leading zero
-        ("3.01", {"minor zero"}),
-        ("0.00", {"major", "minor zero"}),
-        # micro empty
-        ("3.x.1", {"micro empty"}),
-        ("9.x.1", {"major", "micro empty"}),
-        # micro leading zero
-        ("3.3.0", {"micro zero"}),
-        ("3.3.00", {"micro zero"}),
-        ("3.3.01", {"micro zero"}),
-        ("3.0.0", {"micro zero"}),
-        ("3.00.0", {"minor zero", "micro zero"}),
-        ("0.00.0", {"major", "minor zero", "micro zero"}),
-        # micro number
-        ("3.0.a", {"micro numeric"}),
-        ("0.3.a", {"major", "micro numeric"}),
+        ("1", set()),
+        ("2", set()),
+        ("10", set()),
+        ("999", set()),
+        ("1, 2", set()),
+        ("31, 32", set()),
+        # non-integers / empty / negative / signed / dotted / missing space / non-ASCII
+        ("", {"positive_int"}),
+        ("-1", {"positive_int"}),
+        ("+1", {"positive_int"}),
+        ("1.0", {"positive_int"}),
+        ("3.13", {"positive_int"}),
+        ("4.0", {"positive_int"}),
+        ("31,32", {"positive_int"}),
+        ("a", {"positive_int"}),
+        ("1x", {"positive_int"}),
+        ("١", {"positive_int"}),
+        # zero
+        ("0", {"positive_int"}),
+        # leading zeros
+        ("01", {"leading_zeros"}),
+        ("007", {"leading_zeros"}),
+        ("00", {"leading_zeros", "positive_int"}),
     ],
     # call str() on each parameterised value in the test ID.
     ids=str,
 )
-def test_validate_python_version(line: str, expected_warnings: set):
+def test_validate_protocol_version(line: str, expected_warnings: set):
     warnings = [
-        warning for (_, warning) in check_ceps._validate_python_version(1, line)
+        warning for (_, warning) in check_ceps._validate_protocol_version(1, line)
     ]
 
     found_warnings = set()
 
-    if "segments" in expected_warnings:
-        found_warnings.add("segments")
-        expected = f"Python-Version must have two or three segments: {line}"
+    if "positive_int" in expected_warnings:
+        found_warnings.add("positive_int")
+        expected = f"Protocol-Version must be a positive integer: {line}"
         matching = [w for w in warnings if w == expected]
         assert matching == [expected], warnings
 
-    if "major" in expected_warnings:
-        found_warnings.add("major")
-        expected = f"Python-Version major part must be 1, 2, or 3: {line}"
-        matching = [w for w in warnings if w == expected]
-        assert matching == [expected], warnings
-
-    if "minor numeric" in expected_warnings:
-        found_warnings.add("minor numeric")
-        expected = f"Python-Version minor part must be numeric: {line}"
-        matching = [w for w in warnings if w == expected]
-        assert matching == [expected], warnings
-
-    if "minor zero" in expected_warnings:
-        found_warnings.add("minor zero")
-        expected = f"Python-Version minor part must not have leading zeros: {line}"
-        matching = [w for w in warnings if w == expected]
-        assert matching == [expected], warnings
-
-    if "micro empty" in expected_warnings:
-        found_warnings.add("micro empty")
-        expected = (
-            f"Python-Version micro part must be empty if minor part is 'x': {line}"
-        )
-        matching = [w for w in warnings if w == expected]
-        assert matching == [expected], warnings
-
-    if "micro zero" in expected_warnings:
-        found_warnings.add("micro zero")
-        expected = f"Python-Version micro part must not have leading zeros: {line}"
-        matching = [w for w in warnings if w == expected]
-        assert matching == [expected], warnings
-
-    if "micro numeric" in expected_warnings:
-        found_warnings.add("micro numeric")
-        expected = f"Python-Version micro part must be numeric: {line}"
+    if "leading_zeros" in expected_warnings:
+        found_warnings.add("leading_zeros")
+        expected = f"Protocol-Version must not have leading zeros: {line}"
         matching = [w for w in warnings if w == expected]
         assert matching == [expected], warnings
 
@@ -388,21 +345,25 @@ def test_validate_python_version(line: str, expected_warnings: set):
     ("line", "expected_warnings"),
     [
         (
-            "3.12, 4.0",
-            ["Python-Version major part must be 1, 2, or 3: 4.0"],
+            "31, 4.0",
+            ["Protocol-Version must be a positive integer: 4.0"],
         ),
         (
-            "3.x, 3.01",
-            ["Python-Version minor part must not have leading zeros: 3.01"],
+            "31, 02",
+            ["Protocol-Version must not have leading zeros: 02"],
         ),
         (
-            "2.7, 3.0.a",
-            ["Python-Version micro part must be numeric: 3.0.a"],
+            "31, 0",
+            ["Protocol-Version must be a positive integer: 0"],
+        ),
+        (
+            "31, ",
+            ["Protocol-Version must be a positive integer: "],
         ),
     ],
 )
-def test_validate_python_version_multiple(line: str, expected_warnings: list):
+def test_validate_protocol_version_multiple(line: str, expected_warnings: list):
     warnings = [
-        warning for (_, warning) in check_ceps._validate_python_version(1, line)
+        warning for (_, warning) in check_ceps._validate_protocol_version(1, line)
     ]
     assert warnings == expected_warnings, warnings

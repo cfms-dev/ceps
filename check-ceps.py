@@ -49,7 +49,7 @@ ALL_HEADERS = (
     "Topic",
     "Requires",
     "Created",
-    "Python-Version",
+    "Protocol-Version",
     "Post-History",
     "Replaces",
     "Superseded-By",
@@ -192,8 +192,8 @@ def _validate_header(header: str, line_num: int, content: str) -> MessageIterato
         yield from _validate_cep_references(line_num, content)
     elif header == "Created":
         yield from _validate_created(line_num, content)
-    elif header == "Python-Version":
-        yield from _validate_python_version(line_num, content)
+    elif header == "Protocol-Version":
+        yield from _validate_protocol_version(line_num, content)
     elif header == "Post-History":
         yield from _validate_post_history(line_num, content)
     elif header == "Resolution":
@@ -380,36 +380,18 @@ def _validate_created(line_num: int, line: str) -> MessageIterator:
     yield from _date(line_num, line, "Created")
 
 
-def _validate_python_version(line_num: int, line: str) -> MessageIterator:
-    """'Python-Version' must be an ``X.Y[.Z]`` version"""
+def _validate_protocol_version(line_num: int, line: str) -> MessageIterator:
+    """'Protocol-Version' must be one or more positive integers"""
 
     versions = line.split(", ")
     for version in versions:
-        if version.count(".") not in {1, 2}:
-            yield line_num, f"Python-Version must have two or three segments: {version}"
+        if not _is_digits(version):
+            yield line_num, f"Protocol-Version must be a positive integer: {version}"
             continue
-
-        try:
-            major, minor, micro = version.split(".", 2)
-        except ValueError:
-            major, minor = version.split(".", 1)
-            micro = ""
-
-        if major not in "123":
-            yield line_num, f"Python-Version major part must be 1, 2, or 3: {version}"
-        if not _is_digits(minor) and minor != "x":
-            yield line_num, f"Python-Version minor part must be numeric: {version}"
-        elif minor != "0" and minor[0] == "0":
-            yield line_num, f"Python-Version minor part must not have leading zeros: {version}"
-
-        if micro == "":
-            continue
-        if minor == "x":
-            yield line_num, f"Python-Version micro part must be empty if minor part is 'x': {version}"
-        elif micro[0] == "0":
-            yield line_num, f"Python-Version micro part must not have leading zeros: {version}"
-        elif not _is_digits(micro):
-            yield line_num, f"Python-Version micro part must be numeric: {version}"
+        if version.startswith("0") and version != "0":
+            yield line_num, f"Protocol-Version must not have leading zeros: {version}"
+        if int(version) < 1:
+            yield line_num, f"Protocol-Version must be a positive integer: {version}"
 
 
 def _validate_post_history(line_num: int, body: str) -> MessageIterator:

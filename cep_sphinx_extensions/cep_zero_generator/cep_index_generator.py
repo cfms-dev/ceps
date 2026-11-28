@@ -63,17 +63,17 @@ def write_ceps_json(ceps: list[parser.CEP], path: Path) -> None:
     Path(path, "api", "ceps.json").write_text(json_ceps, encoding="utf-8")
 
 
-def build_release_ceps(ceps: list[parser.CEP]) -> dict[str, int]:
-    """Map each version to its release-schedule CEP number.
+def build_release_ceps(ceps: list[parser.CEP]) -> dict[int, int]:
+    """Map each protocol version to its release-schedule CEP number.
 
     Handles release CEPs that cover multiple versions jointly
-    (e.g. "2.6, 3.0"), so individual versions also resolve.
+    (e.g. "1, 2"), so individual versions also resolve.
     """
-    release_ceps: dict[str, int] = {}
+    release_ceps: dict[int, int] = {}
 
     for cep in ceps:
-        if cep.python_version and "release" in cep.topic:
-            for version in map(str.strip, cep.python_version.split(",")):
+        if cep.protocol_version is not None and "release" in cep.topic:
+            for version in cep.protocol_version:
                 release_ceps[version] = cep.number
 
     return release_ceps

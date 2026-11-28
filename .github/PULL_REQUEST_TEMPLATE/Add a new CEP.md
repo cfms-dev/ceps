@@ -40,6 +40,6 @@ If your CEP is not Standards Track, remove the corresponding section.
     * [ ] Acknowledgements
     * [ ] Footnotes
     * [ ] Change History
-* [ ] ``Python-Version`` set to valid future version, if relevant
+* [ ] ``Protocol-Version`` set to valid target protocol version(s) (integer, comma-separated if multiple), if relevant
 * [ ] Any project stated in the CEP as supporting/endorsing/benefiting from the CEP formally confirmed such
 * [ ] Right before or after initial merging, [CEP discussion thread](https://cfms-dev.github.io/ceps/cep-0001/#discussing-a-cep) created and linked to in ``Discussions-To`` and ``Post-History``

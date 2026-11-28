@@ -4,4 +4,4 @@ Author: Phillip J. Eby <pje@telecommunity.com>
 Status: Final
 Type: Informational
 Created: 26-Sep-2010
-Python-Version: 3.2
+Protocol-Version: 1

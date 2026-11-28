@@ -15,6 +15,7 @@ from cep_sphinx_extensions.cep_zero_generator.constants import (
     TYPE_PROCESS,
     TYPE_STANDARDS,
 )
+from cep_sphinx_extensions.cep_zero_generator.errors import CEPError
 from cep_sphinx_extensions.cep_zero_generator.parser import _Author
 
 from ..conftest import CEP_ROOT
@@ -50,7 +51,17 @@ def test_cep_equal():
                 "number": 8,
                 "shorthand": ":abbr:`PA (Process, Active)`",
                 "title": "Style Guide for CFMS Code",
-                "python_version": "",
+                "protocol_version": "",
+            },
+        ),
+        (
+            "cep-0361.rst",
+            {
+                "authors": "Barry Warsaw, Neal Norwitz",
+                "number": 361,
+                "shorthand": ":abbr:`IF (Informational, Final)`",
+                "title": "CFMS 2.6 and 3.0 Release Schedule",
+                "protocol_version": "1, 2",
             },
         ),
         (
@@ -60,7 +71,7 @@ def test_cep_equal():
                 "number": 719,
                 "shorthand": ":abbr:`IA (Informational, Active)`",
                 "title": "CFMS 3.13 Release Schedule",
-                "python_version": "3.13",
+                "protocol_version": "3",
             },
         ),
     ],
@@ -69,6 +80,44 @@ def test_cep_details(test_input, expected):
     cep = parser.CEP(CEP_ROOT / test_input)
 
     assert cep.details == expected
+
+
+def test_cep_protocol_version_full_details():
+    cep8 = parser.CEP(CEP_ROOT / "cep-0008.rst")
+    cep361 = parser.CEP(CEP_ROOT / "cep-0361.rst")
+    cep719 = parser.CEP(CEP_ROOT / "cep-0719.rst")
+
+    assert cep8.protocol_version is None
+    assert cep8.full_details["protocol_version"] is None
+    assert cep361.protocol_version == [1, 2]
+    assert cep361.full_details["protocol_version"] == [1, 2]
+    assert cep719.protocol_version == [3]
+    assert cep719.full_details["protocol_version"] == [3]
+
+
+@pytest.mark.parametrize(
+    "bad_version",
+    ["4.0", "0", "01", "-1", "", "31,32", "31, 0", "31, 02", "31, "],
+)
+def test_cep_invalid_protocol_version_raises(tmp_path, bad_version):
+    cep_file = tmp_path / "cep-9999.rst"
+    cep_file.write_text(
+        f"""\
+CEP: 9999
+Title: Invalid Protocol Version
+Author: Test Author
+Status: Draft
+Type: Standards Track
+Created: 01-Jan-2026
+Protocol-Version: {bad_version}
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        CEPError, match=r"Protocol-Version must be positive integer\(s\)"
+    ):
+        parser.CEP(cep_file)
 
 
 @pytest.mark.parametrize(

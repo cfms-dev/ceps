@@ -115,7 +115,25 @@ class CEP:
         # Other headers
         self.created = metadata["Created"]
         self.discussions_to = metadata["Discussions-To"]
-        self.python_version = metadata["Python-Version"]
+        raw_protocol_version = metadata["Protocol-Version"]
+        if raw_protocol_version is not None:
+            protocol_versions: list[int] = []
+            for raw_version in raw_protocol_version.split(", "):
+                if (
+                    not raw_version.isascii()
+                    or not raw_version.isdigit()
+                    or (raw_version.startswith("0") and raw_version != "0")
+                    or int(raw_version) < 1
+                ):
+                    _raise_cep_error(
+                        self,
+                        f"Protocol-Version must be positive integer(s) without leading zeros: {raw_protocol_version!r}",
+                        cep_num=True,
+                    )
+                protocol_versions.append(int(raw_version))
+            self.protocol_version: list[int] | None = protocol_versions
+        else:
+            self.protocol_version = None
         self.replaces = metadata["Replaces"]
         self.requires = metadata["Requires"]
         self.resolution = metadata["Resolution"]
@@ -159,12 +177,18 @@ class CEP:
             "shorthand": self.shorthand,
             # the comma-separated list of authors
             "authors": ", ".join(self._author_names),
-            # The targeted Python-Version (if present) or the empty string
-            "python_version": self.python_version or "",
+            # The targeted Protocol-Version (if present) or the empty string
+            "protocol_version": (
+                ", ".join(map(str, self.protocol_version))
+                if self.protocol_version is not None
+                else ""
+            ),
         }
 
     @property
-    def full_details(self) -> dict[str, str | int | Sequence[str]]:
+    def full_details(
+        self,
+    ) -> dict[str, str | int | Sequence[str] | Sequence[int] | None]:
         """Returns all headers of the CEP as a dict."""
         return {
             "number": self.number,
@@ -175,7 +199,7 @@ class CEP:
             "type": self.cep_type,
             "topic": ", ".join(sorted(self.topic)),
             "created": self.created,
-            "python_version": self.python_version,
+            "protocol_version": self.protocol_version,
             "post_history": self.post_history,
             "resolution": self.resolution,
             "requires": self.requires,

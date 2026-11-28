@@ -22,11 +22,11 @@ def test_with_fake_cep():
             1,
             "Headers must be in CEP 12 order. Correct order: Title, Author, "
             "Sponsor, BDFL-Delegate, Discussions-To, Status, Topic, Requires, "
-            "Created, Python-Version, Post-History, Resolution",
+            "Created, Protocol-Version, Post-History, Resolution",
         ),
         (4, "Author continuation lines must end with a comma"),
         (5, "Author line must not be over-indented"),
-        (7, "Python-Version major part must be 1, 2, or 3: 4.0"),
+        (7, "Protocol-Version must be a positive integer: 4.0"),
         (8, "Sponsor entries must begin with a valid 'Name': ''"),
         (9, "Sponsor entries must begin with a valid 'Name': ''"),
         (11, "Created must be a 'DD-mmm-YYYY' date: '1-Jan-1989'"),

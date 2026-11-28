@@ -8,7 +8,7 @@ If you're unsure about something, just leave it blank and we'll take a look.
 * [ ] CEP matches the final implementation
 * [ ] Any substantial changes since the accepted version approved by the SC/CEP delegate
 * [ ] Pull request title in appropriate format (``CEP 123: Mark as Final``)
-* [ ] ``Status`` changed to ``Final`` (and ``Python-Version`` is correct)
+* [ ] ``Status`` changed to ``Final`` (and ``Protocol-Version`` is correct)
 * [ ] Canonical docs/spec linked with a ``canonical-doc`` directive
       (or ``canonical-pypa-spec`` for packaging CEPs,
        or ``canonical-typing-spec`` for typing CEPs)

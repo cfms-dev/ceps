@@ -61,7 +61,7 @@ class CEPZeroWriter:
     # sorted as well.
     RESERVED: dict[int, str] = {}
 
-    def __init__(self, release_ceps: dict[str, int] | None = None):
+    def __init__(self, release_ceps: dict[int, int] | None = None):
         self.output: list[str] = []
         self.release_ceps = release_ceps or {}
 
@@ -83,24 +83,25 @@ class CEPZeroWriter:
         number: int,
         title: str,
         authors: str,
-        python_version: str | None = None,
+        protocol_version: str | None = None,
     ) -> None:
         self.emit_text(f"   * - {shorthand}")
         self.emit_text(f"     - :cep:`{number} <{number}>`")
         self.emit_text(f"     - :cep:`{title.replace('`', '')} <{number}>`")
         self.emit_text(f"     - {authors}")
-        if python_version is not None:
-            linked_versions = []
-
-            for version in map(str.strip, python_version.split(",")):
-                release_cep = self.release_ceps.get(version)
-
-                if release_cep is not None:
-                    linked_versions.append(f":cep:`{version} <{release_cep}>`")
-                else:
-                    linked_versions.append(version)
-
-            self.emit_text(f"     - {', '.join(linked_versions)}")
+        if protocol_version is not None:
+            if protocol_version == "":
+                self.emit_text("     - ")
+            else:
+                linked_versions = []
+                for raw_version in map(str.strip, protocol_version.split(",")):
+                    version = int(raw_version)
+                    release_cep = self.release_ceps.get(version)
+                    if release_cep is not None:
+                        linked_versions.append(f":cep:`{version} <{release_cep}>`")
+                    else:
+                        linked_versions.append(str(version))
+                self.emit_text(f"     - {', '.join(linked_versions)}")
 
     def emit_column_headers(self, *, include_version=True) -> None:
         """Output the column headers for the CEP indices."""
@@ -114,7 +115,7 @@ class CEPZeroWriter:
         self.emit_text("     - Title")
         self.emit_text("     - Authors")
         if include_version:
-            self.emit_text("     - ")  # for Python-Version
+            self.emit_text("     - ")  # for Protocol-Version
 
     def emit_title(self, text: str, *, symbol: str = "=") -> None:
         self.output.append(text)
@@ -125,12 +126,12 @@ class CEPZeroWriter:
         self.emit_title(text, symbol="-")
 
     def emit_table(self, ceps: list[CEP]) -> None:
-        include_version = any(cep.details["python_version"] for cep in ceps)
+        include_version = any(cep.details["protocol_version"] != "" for cep in ceps)
         self.emit_column_headers(include_version=include_version)
         for cep in ceps:
             details = cep.details
             if not include_version:
-                details.pop("python_version")
+                details.pop("protocol_version")
             self.emit_cep_row(**details)
         # list-table must have at least one body row
         if len(ceps) == 0:
@@ -261,7 +262,7 @@ class CEPZeroWriter:
                         number=number,
                         title="RESERVED",
                         authors=claimants,
-                        python_version=None,
+                        protocol_version=None,
                     )
             else:
                 self.emit_text("None.")
