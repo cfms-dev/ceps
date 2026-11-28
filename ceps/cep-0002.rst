@@ -1,9 +1,10 @@
 CEP: 2
 Title: Access Control Language (CACL) and Atomic Permissions
 Author: Creeper19472
-Status: Draft
+Status: Final
 Type: Standards Track
 Created: 23-Nov-2026
+Protocol-Version: 31
 
 
 Abstract
